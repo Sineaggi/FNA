@@ -246,8 +246,14 @@ namespace Microsoft.Xna.Framework
 
 		private static bool PrepareVKAttributes()
 		{
+			if (String.IsNullOrEmpty(ForcedGLDevice) ||
+			        !ForcedGLDevice.Equals(VULKAN))
+			{
+				return false;
+			}
 			// Who will write the VulkanDevice.. will it be YOU?
-			return false;
+			// todo: fucking figure out?
+			return true;
 		}
 
 		private static bool PrepareMTLAttributes()
@@ -1340,7 +1346,8 @@ namespace Microsoft.Xna.Framework
 
 			switch (ActualGLDevice)
 			{
-			case VULKAN:	break; // Maybe some day!
+			case VULKAN:
+				return new VulkanDevice(presentationParameters, adapter);
 			case METAL:
 				return new MetalDevice(presentationParameters, adapter);
 			case MODERNGL:

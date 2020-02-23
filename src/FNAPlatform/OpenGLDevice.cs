@@ -12,7 +12,7 @@
 /* Ah, so I see you've run into some issues with threaded GL...
  *
  * This class is designed to handle rendering coming from multiple threads, but
- * if you're too wreckless with how many threads are calling the GL, this will
+ * if you're too reckless with how many threads are calling the GL, this will
  * hang.
  *
  * With THREADED_GL we instead allow you to run threaded rendering using
@@ -684,7 +684,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				/* SPIR-V is very new and not really necessary. */
 				if (shaderProfile == "glspirv" && !useCoreProfile)
 				{
-					shaderProfile = "glsl120";
+					//shaderProfile = "spirv";
+					//shaderProfile = "glsl120";
 				}
 			}
 
@@ -1975,6 +1976,52 @@ namespace Microsoft.Xna.Framework.Graphics
 				null,
 				IntPtr.Zero
 			);
+
+			unsafe {
+				MojoShader.MOJOSHADER_effect *effectPtr = (MojoShader.MOJOSHADER_effect*) effect;
+				MojoShader.MOJOSHADER_effectObject* objects = (MojoShader.MOJOSHADER_effectObject*) effectPtr->objects;
+
+				//MojoShader.MOJOSHADER_effectObject* effctO = (MojoShader.MOJOSHADER_effectObject*) effectPtr->object_count;
+				for (int i = 0; i < effectPtr->object_count; i += 1)
+				{
+					var effectObject = objects[i];
+
+					var shader = effectObject.shader;
+					MojoShader.MOJOSHADER_parseData *parseDataPtr =  (MojoShader.MOJOSHADER_parseData*) shader.shader;
+
+					if (parseDataPtr != null)
+					{
+						var parseData = parseDataPtr[0];
+						if (parseData.shader_type == MojoShader.MOJOSHADER_shaderType.MOJOSHADER_TYPE_VERTEX)
+						{
+							var size = parseData.output_len - 168; // GET FUCKING FUCKED sizeof(SpirvPatchTable)
+							var pnt = parseData.output;
+							byte[] managedArray = new byte[size];
+							Marshal.Copy(pnt, managedArray, 0, size);
+
+							//System.IO.File.WriteAllBytes(@"C:\Users\Public\TestFolder\WriteText3.spv", managedArray);
+
+							//var strLength = Marshal.PtrToStringAnsi(parseData.output).Length;
+							//var  sss = System.Text.Encoding.ASCII.GetString(managedArray);
+
+							uint[] decoded = new uint[managedArray.Length / 4];
+							System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
+
+
+							//Console.WriteLine($"Got myself an Array {decoded}");
+
+							//var createInfo = new ShaderModuleCreateInfo();
+							//var kk = createInfo.m;
+							//device.CreateShaderModule(new ShaderModuleCreateInfo
+							//		{Code = managedArray});
+
+						}
+					}
+
+					//Console.WriteLine($"jella ${effectObject}");
+				}
+			}
+
 
 #if DEBUG
 			unsafe
