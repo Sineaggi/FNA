@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Messaging;
 using System.Security.AccessControl;
@@ -693,6 +694,11 @@ namespace Microsoft.Xna.Framework.Graphics
 		public void SwapBuffers(Rectangle? sourceRectangle, Rectangle? destinationRectangle,
 			IntPtr overrideWindowHandle)
 		{
+			/* Just in case Present() is called
+			* before any rendering happens...
+			*/
+			BeginFrame();
+
 			//throw new NotImplementedException();
 			// todo: what to do if sourceRectangle or destinationRectangle are not null. Also what to do with windowhandle
 
@@ -855,9 +861,68 @@ namespace Microsoft.Xna.Framework.Graphics
 			// since all this code assumed calling drawIndexed in the end, and I just wan to cmDdraw
 			// something about needing a pipeline tho? wtf
 
+			String fname, vname;
+			ShaderModule fshader, vshader;
+			var feld = typeof(ShaderModule).GetField("m", BindingFlags.NonPublic | BindingFlags.Instance);
+			unsafe
+			{
+				//var entrypoint = Marshal.PtrToStringAnsi(parseData.mainfn);
+				var fpd = ((MojoShader.MOJOSHADER_parseData*)
+					((MojoShader.MOJOSHADER_vkShader*) shaderState.fragmentShader)->parseData);
+				fname = Marshal.PtrToStringAnsi(
+					((MojoShader.MOJOSHADER_parseData*)
+						((MojoShader.MOJOSHADER_vkShader*) shaderState.fragmentShader)->parseData)->mainfn);
 
+				fshader = (ShaderModule) typeof(ShaderModule).GetConstructor(
+					BindingFlags.NonPublic | BindingFlags.Instance,
+					null, Type.EmptyTypes, null).Invoke(null);
 
-			//_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, trianglePipeline);
+				var vert = ((MojoShader.MOJOSHADER_vkShader*) shaderState.vertexShader);
+				var sm = vert->shaderModule;
+				UInt64 sss = (UInt64) sm;
+				var frag = ((MojoShader.MOJOSHADER_vkShader*) shaderState.fragmentShader);
+				var fshrptr = (ulong)(frag->shaderModule.ToInt64());
+				object f = fshader;
+				feld.SetValue(f, fshrptr);
+
+				vname = Marshal.PtrToStringAnsi(
+					((MojoShader.MOJOSHADER_parseData*)
+						((MojoShader.MOJOSHADER_vkShader*) shaderState.vertexShader)->parseData)->mainfn);
+
+				vshader = (ShaderModule) typeof(ShaderModule).GetConstructor(
+					BindingFlags.NonPublic | BindingFlags.Instance,
+					null, Type.EmptyTypes, null).Invoke(null);
+
+				var vshrptr = (ulong)(vert->shaderModule.ToInt64());
+				object v = vshader;
+				feld.SetValue(v, vshrptr);
+			}
+
+			Console.WriteLine(fname);
+			Console.WriteLine(vname);
+
+			var stages = new []
+			{
+				new PipelineShaderStageCreateInfo
+				{
+					Stage = ShaderStageFlags.Vertex,
+					Module = vshader,
+					Name = vname,
+				},
+				new PipelineShaderStageCreateInfo
+				{
+					Stage = ShaderStageFlags.Fragment,
+					Module = fshader,
+					Name = fname,
+				}
+			};
+
+			var trianglePipeline = device.CreateGraphicsPipelines(null, new []{new GraphicsPipelineCreateInfo
+			{
+				Stages = stages
+			}})[0];
+
+			_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, trianglePipeline);
 			//_commandBuffer.CmdDraw(vertexCount, instanceCount, firstVertex, firstInstance);
 
 			Console.WriteLine("DrawUserPrimitives");
