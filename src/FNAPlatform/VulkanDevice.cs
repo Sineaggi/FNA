@@ -15,6 +15,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Remoting.Messaging;
 using System.Security.AccessControl;
 using Microsoft.Xna.Framework.Media;
 using SDL2;
@@ -68,6 +69,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			public uint NumPreshaders { get; set; }
 			public uint[] ShaderIndices { get; set; }
 			public uint[] PreshaderIndices { get; set; }
+
+			public VkShader[] Shaders { get; set; }
 
 			public VulkanEffect(IntPtr effect, IntPtr vkEffect)
 			{
@@ -194,6 +197,9 @@ namespace Microsoft.Xna.Framework.Graphics
 		private Vulkan.Image currentImage;
 
 		private Vulkan.SwapchainKhr _swapchainKhr;
+
+		private MojoShader.MOJOSHADER_vkShaderState shaderState = new MojoShader.MOJOSHADER_vkShaderState();
+		private MojoShader.MOJOSHADER_vkShaderState prevShaderState;
 
 		struct QueueFamilyIndices
 		{
@@ -394,6 +400,16 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 
 			setupSwapchain(surfaceCaps, width, height);
+
+			var kk = (ulong)((IMarshalling) device).Handle;
+			var kkola = Convert.ToString(53, 2);
+			var llpla = Convert.ToString((long)kk, 2).PadLeft(64, '0');
+
+			var shaderContext = MojoShader.MOJOSHADER_vkInitDevice(((IMarshalling)device).Handle);
+			if (shaderContext == IntPtr.Zero)
+			{
+				throw new Exception("Failed to init device");
+			}
 
 			// make instance
 			// make fucker
@@ -639,8 +655,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			;
 		}
 
+		private bool frameInProgress = false;
+
 		public void BeginFrame()
 		{
+			if (frameInProgress) return;
+
+			// The cycle begins anew!
+			frameInProgress = true;
+
 			imageIndex = device.AcquireNextImageKHR(_swapchainKhr, ulong.MaxValue, acquireSemaphore);
 			stopWatch.Stop();
 			//Console.WriteLine($"{stopWatch.ElapsedMilliseconds}ms");
@@ -712,6 +735,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 				throw new Exception("Failed to present. Needs work.", e);
 			}
+			graphicsQueue.WaitIdle();
+
+			// We're done here.
+			frameInProgress = false;
 		}
 
 		public void SetStringMarker(string text)
@@ -752,7 +779,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			*         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline);
 			vkCmdDraw(commandBuffer, 3, 1, 0, 0); // triangle
 
-				*/
+
 
 			var vertexBuffer = vertexData;
 			var vertexBufferSize = primitiveCount * (sizeof(float) * 3);
@@ -784,7 +811,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			SDL.SDL_memcpy(data, vertexData, (IntPtr)vertexBufferSize);
 			device.UnmapMemory(verticesMemory);
 			device.BindBufferMemory(verticesBuffer, verticesMemory, 0);
-
+*/
 			/*
 			 * 			VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &vertices.memory));
 			VK_CHECK_RESULT(vkMapMemory(device, vertices.memory, 0, memAlloc.allocationSize, 0, &data));
@@ -793,6 +820,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			VK_CHECK_RESULT(vkBindBufferMemory(device, vertices.buffer, vertices.memory, 0));
 			 */
 
+			/*
 			var indexBufferInfo = new BufferCreateInfo
 			{
 				Size = indexBufferSize,
@@ -820,7 +848,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			uint instanceCount = (uint)1;
 			uint firstVertex = 0; // use vertexOffset here?
 			uint firstInstance = 0;
-
+*/
 
 			// todo: shader, bindpoints
 			// todo: maybe index buffer was uncecessary?
@@ -1178,10 +1206,17 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
+		struct VkShader
+		{
+			internal MojoShader.MOJOSHADER_parseData ParseData { get; set; }
+			internal ShaderModule Handle { get; set; }
+			internal uint Refcount { get; set; }
+		}
+
 		public IGLEffect CreateEffect(byte[] effectCode)
 		{
 			IntPtr effect = IntPtr.Zero;
-			IntPtr vkEffect = IntPtr.Zero;
+			//IntPtr vkEffect = IntPtr.Zero;
 
 			effect = MojoShader.MOJOSHADER_parseEffect(
 				MojoShader.MOJOSHADER_PROFILE_SPIRV,
@@ -1222,145 +1257,99 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 #endif
 
-			var vulkanEffect = new VulkanEffect(effect, vkEffect);
-
-			var shaderBundles = new List<ShaderBundle>();
-			unsafe {
-				MojoShader.MOJOSHADER_effect *effectPtr = (MojoShader.MOJOSHADER_effect*) effect;
-				MojoShader.MOJOSHADER_effectObject* objects = (MojoShader.MOJOSHADER_effectObject*) effectPtr->objects;
-
-				var kkkkk = (MojoShader.MOJOSHADER_effectTechnique *)effectPtr->current_technique;
-
-				for (int i = 0; i < effectPtr->object_count; i += 1)
-				{
-					var effectObject = objects[i];
-					if (effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_PIXELSHADER
-					    || effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_VERTEXSHADER)
-					{
-						if (Convert.ToBoolean(effectObject.shader.is_preshader))
-						{
-							vulkanEffect.NumPreshaders++;
-						}
-						else
-						{
-							vulkanEffect.NumShaders++;
-						}
-					}
-				}
-
-				vulkanEffect.ShaderIndices = new uint[vulkanEffect.NumShaders];
-				vulkanEffect.PreshaderIndices = new uint[vulkanEffect.NumPreshaders];
-
-				int current_shader = 0;
-				var current_preshader = 0;
-
-				for (int i = 0; i < effectPtr->object_count; i += 1)
-				{
-					var effectObject = objects[i];
-					if (effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_PIXELSHADER
-					    || effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_VERTEXSHADER)
-					{
-						if (Convert.ToBoolean(effectObject.shader.is_preshader))
-						{
-							vulkanEffect.PreshaderIndices[current_preshader++] = i;
-							continue;
-						}
-
-						var shaderModule = ;
-					}
-				}
-
-				//MojoShader.MOJOSHADER_effectObject* effctO = (MojoShader.MOJOSHADER_effectObject*) effectPtr->object_count;
-				for (int i = 0; i < effectPtr->object_count; i += 1)
-				{
-					var effectObject = objects[i];
-
-					var shader = effectObject.shader;
-					MojoShader.MOJOSHADER_parseData *parseDataPtr =  (MojoShader.MOJOSHADER_parseData*) shader.shader;
-
-					if (parseDataPtr != null)
-					{
-						var parseData = parseDataPtr[0];
-						// fucking nasty hack. looks like if you read too far into the array, you get garbage.
-						// they use this to fix?
-						// todo: !!FIXME: christ
-						if (parseData.shader_type == MojoShader.MOJOSHADER_shaderType.MOJOSHADER_TYPE_PIXEL
-						    || parseData.shader_type == MojoShader.MOJOSHADER_shaderType.MOJOSHADER_TYPE_VERTEX)
-						{
-
-							var entrypoint = Marshal.PtrToStringAnsi(parseData.mainfn);
-							var size = parseData.output_len - 168; // GET FUCKING FUCKED sizeof(SpirvPatchTable)
-							var pnt = parseData.output;
-							byte[] managedArray = new byte[size];
-							Marshal.Copy(pnt, managedArray, 0, size);
-							uint[] decoded = new uint[managedArray.Length / 4];
-							System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
-							// yes i copy once to byte[] then once to uint[]
-							// todo: it's a fucking hack.
-							var shaderModule = device.CreateShaderModule(new ShaderModuleCreateInfo
-								{Code = decoded});
-
-							var shaderBundle = new ShaderBundle {Name = entrypoint, ShaderModule = shaderModule};
-							shaderBundles.Add(shaderBundle);
-						}
-					}
-
-					//Console.WriteLine($"jella ${effectObject}");
-				}
-
-				int current_shader = 0;
-				var current_preshader = 0;
-
-				for (uint i = 0; i < effectPtr->object_count; i += 1)
-				{
-					var effectObject = objects[i];
-
-					var shader = effectObject.shader;
-					MojoShader.MOJOSHADER_parseData *parseDataPtr =  (MojoShader.MOJOSHADER_parseData*) shader.shader;
-
-					if (parseDataPtr != null)
-					{
-						var parseData = parseDataPtr[0];
-						// fucking nasty hack. looks like if you read too far into the array, you get garbage.
-						// they use this to fix?
-						// todo: !!FIXME: christ
-						if (parseData.shader_type == MojoShader.MOJOSHADER_shaderType.MOJOSHADER_TYPE_PIXEL
-						    || parseData.shader_type == MojoShader.MOJOSHADER_shaderType.MOJOSHADER_TYPE_VERTEX)
-						{
-							if (effectObject.shader.is_preshader == 1)
-							{
-								Console.WriteLine("get moolah %d\n", effectObject.shader.is_preshader);
-								vulkanEffect.PreshaderIndices[current_preshader++] = i;
-								continue;
-							}
-
-
-							vulkanEffect.ShaderIndices[current_shader] = i;
-							Console.WriteLine($"setting shader index {current_shader} to {i}");
-							current_shader++;
-						}
-					}
-					//Console.WriteLine($"jella ${effectObject}");
-				}
-			}
-
-
-			/*
-			glEffect = MojoShader.MOJOSHADER_vkCompileEffect(effect);
-			if (glEffect == IntPtr.Zero)
+			var vkEffect = MojoShader.MOJOSHADER_vkCompileEffect(effect);
+			if (vkEffect == IntPtr.Zero)
 			{
-				throw new Exception("ASS");
 				throw new InvalidOperationException(
 					MojoShader.MOJOSHADER_glGetError()
 				);
 			}
-			*/
 
-			vulkanEffect.ShaderBundles = shaderBundles;
+			var vulkanEffect = new VulkanEffect(effect, vkEffect);
+
+			//var shaderBundles = new List<ShaderBundle>();
+			if (false)
+			{
+				unsafe
+				{
+					MojoShader.MOJOSHADER_effect* effectPtr = (MojoShader.MOJOSHADER_effect*) effect;
+					MojoShader.MOJOSHADER_effectObject* objects =
+						(MojoShader.MOJOSHADER_effectObject*) effectPtr->objects;
+
+					var kkkkk = (MojoShader.MOJOSHADER_effectTechnique*) effectPtr->current_technique;
+
+					for (int i = 0; i < effectPtr->object_count; i += 1)
+					{
+						var effectObject = objects[i];
+						if (effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_PIXELSHADER
+						    || effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_VERTEXSHADER)
+						{
+							if (Convert.ToBoolean(effectObject.shader.is_preshader))
+							{
+								vulkanEffect.NumPreshaders++;
+							}
+							else
+							{
+								vulkanEffect.NumShaders++;
+							}
+						}
+					}
+
+					vulkanEffect.ShaderIndices = new uint[vulkanEffect.NumShaders];
+					vulkanEffect.PreshaderIndices = new uint[vulkanEffect.NumPreshaders];
+					vulkanEffect.Shaders = new VkShader[vulkanEffect.NumShaders];
+
+					int current_shader = 0;
+					var current_preshader = 0;
+
+					for (uint i = 0; i < effectPtr->object_count; i += 1)
+					{
+						var effectObject = objects[i];
+						if (effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_PIXELSHADER
+						    || effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_VERTEXSHADER)
+						{
+							if (Convert.ToBoolean(effectObject.shader.is_preshader))
+							{
+								vulkanEffect.PreshaderIndices[current_preshader++] = i;
+								continue;
+							}
+
+							var parseData = ((MojoShader.MOJOSHADER_parseData*) effectObject.shader.shader)[0];
+
+							var shader = profileCompileShader(parseData);
+							//vulkanEffect.Shaders[current_shader] = new VkShader();
+							vulkanEffect.Shaders[current_shader].ParseData = parseData;
+							vulkanEffect.Shaders[current_shader].Handle = shader;
+							vulkanEffect.Shaders[current_shader].Refcount = 1;
+							vulkanEffect.ShaderIndices[current_shader] = i;
+							current_shader++;
+						}
+					}
+
+				}
+			}
+
+			//vulkanEffect.ShaderBundles = shaderBundles;
 			return vulkanEffect;
 
 			// todo: next task, create an effect. how? who the fuck knows
 			throw new NotImplementedException();
+		}
+
+		private ShaderModule profileCompileShader(MojoShader.MOJOSHADER_parseData parseData)
+		{
+			var entrypoint = Marshal.PtrToStringAnsi(parseData.mainfn);
+			var size = parseData.output_len - 168; // GET FUCKING FUCKED sizeof(SpirvPatchTable)
+			var pnt = parseData.output;
+			byte[] managedArray = new byte[size];
+			Marshal.Copy(pnt, managedArray, 0, size);
+			uint[] decoded = new uint[managedArray.Length / 4];
+			System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
+			// yes i copy once to byte[] then once to uint[]
+			// todo: it's a fucking hack.
+			var shaderModule = device.CreateShaderModule(new ShaderModuleCreateInfo
+				{Code = decoded});
+			return shaderModule;
 		}
 
 		public IGLEffect CloneEffect(IGLEffect effect)
@@ -1374,97 +1363,68 @@ namespace Microsoft.Xna.Framework.Graphics
 			// todo: prio 1, shutdown, how to delete effect?
 		}
 
-		public void ApplyEffect(IGLEffect effect, IntPtr technique, uint pass, IntPtr stateChanges)
-		{
-			var kola = effect as VulkanEffect;
-			//bindshaders
+		private IntPtr currentEffect = IntPtr.Zero;
+		private IntPtr currentTechnique = IntPtr.Zero;
+		private uint currentPass = 0;
 
-			unsafe
+		private bool effectApplied = false;
+
+		public void ApplyEffect(
+			IGLEffect effect,
+			IntPtr technique,
+			uint pass,
+			IntPtr stateChanges
+		) {
+			/* If a frame isn't already in progress,
+			 * wait until one begins to avoid overwriting
+			 * the previous frame's uniform buffers.
+			 */
+			BeginFrame();
+
+			IntPtr vkEffectData = (effect as VulkanEffect).VKEffectData;
+			if (vkEffectData == currentEffect)
 			{
-				MojoShader.MOJOSHADER_effect* effectPtr = (MojoShader.MOJOSHADER_effect*) effect.EffectData;
-				MojoShader.MOJOSHADER_effectObject* objects = (MojoShader.MOJOSHADER_effectObject*) effectPtr->objects;
-
-				Debug.Assert(effectPtr->current_pass == -1);
-
-				var current_technique = (MojoShader.MOJOSHADER_effectTechnique*) effectPtr->current_technique;
-				var curPass = ((MojoShader.MOJOSHADER_effectPass*) current_technique->passes)[(int)pass];
-				for (int i = 0; i < curPass.state_count; i++)
+				if (technique == currentTechnique && pass == currentPass)
 				{
-					var state = ((MojoShader.MOJOSHADER_effectState *)curPass.states)[i];
-					//if (state.type == MojoShader.MOJOSHADER_renderStateType.MOJOSHADER_RS_VERTEXSHADER)
-					{
-						var j = 0;
-						do
-						{
-							var valueI = *(int *)state.value.values;
-							//if (state.value.values == ) // I saw the c header...
-							Console.WriteLine($"Gottem {valueI}");
-							break; //todo: fix this
-						} while (++j < kola.ShaderBundles.Count);
-					}
-					//} else if (state.type == MojoShader.MOJOSHADER_renderStateType.MOJOSHADER_RS_PIXELSHADER)
-					{
-
-					}
+					MojoShader.MOJOSHADER_vkEffectCommitChanges(
+						currentEffect,
+						ref shaderState
+					);
+					return;
 				}
-
-				//MojoShader.MOJOSHADER_effectObject* effctO = (MojoShader.MOJOSHADER_effectObject*) effectPtr->object_count;
-				for (int ii = 0; ii < effectPtr->object_count; ii += 1)
-				{
-					var effectObject = objects[ii];
-
-					var shader = effectObject.shader;
-					MojoShader.MOJOSHADER_parseData* parseDataPtr = (MojoShader.MOJOSHADER_parseData*) shader.shader;
-				}
+				MojoShader.MOJOSHADER_vkEffectEndPass(currentEffect);
+				MojoShader.MOJOSHADER_vkEffectBeginPass(
+					currentEffect,
+					pass,
+					ref shaderState
+				);
+				currentTechnique = technique;
+				currentPass = pass;
+				return;
 			}
-
-
-			var unit = new UnitOfShader();
-
-			var pipelineLayout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo { });
-
-			var createInfo = new GraphicsPipelineCreateInfo
+			else if (currentEffect != IntPtr.Zero)
 			{
-				Stages = new []{new PipelineShaderStageCreateInfo
-				{
-					Stage = ShaderStageFlags.Vertex,
-					Module = unit.vs.ShaderModule, // todo; get vs shader module
-					Name = unit.vs.Name, // todo; get that name
-				},
-					new PipelineShaderStageCreateInfo
-					{
-						Stage = ShaderStageFlags.Fragment,
-						Module = unit.fs.ShaderModule, // todo; get vs shader module
-						Name = unit.fs.Name, // todo; get that name
-					}
-				},
-				VertexInputState = new PipelineVertexInputStateCreateInfo {},
-				InputAssemblyState = new PipelineInputAssemblyStateCreateInfo {},
-				ViewportState = new PipelineViewportStateCreateInfo { ViewportCount = 1, ScissorCount = 1},
-				RasterizationState = new PipelineRasterizationStateCreateInfo { LineWidth = 1.0f },
-				MultisampleState = new PipelineMultisampleStateCreateInfo { RasterizationSamples = SampleCountFlags.Count1},
-				DepthStencilState = new PipelineDepthStencilStateCreateInfo {},
-				ColorBlendState = new PipelineColorBlendStateCreateInfo
-				{
-					Attachments = new [] { new PipelineColorBlendAttachmentState
-					{
-						ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B | ColorComponentFlags.A
-					} }
-				},
-				DynamicState = new PipelineDynamicStateCreateInfo
-				{
-					DynamicStates = new []{ DynamicState.Viewport, DynamicState.Scissor}
-				},
-				Layout = pipelineLayout,
-				RenderPass = renderPass,
-			};
-
-			// something about the pass, being used as an index? need to figure out how to index into my created shaders.
-			// if i'm lucky, code should clean up so that pass -> vs + fs -> compile pipeline
-
-
-			// todo: 1, needs MOJOSHADER support
-			//throw new NotImplementedException();
+				MojoShader.MOJOSHADER_vkEffectEndPass(currentEffect);
+				MojoShader.MOJOSHADER_vkEffectEnd(
+					currentEffect,
+					ref shaderState
+				);
+			}
+			uint whatever;
+			MojoShader.MOJOSHADER_vkEffectBegin(
+				vkEffectData,
+				out whatever,
+				0,
+				stateChanges
+			);
+			MojoShader.MOJOSHADER_vkEffectBeginPass(
+				vkEffectData,
+				pass,
+				ref shaderState
+			);
+			currentEffect = vkEffectData;
+			currentTechnique = technique;
+			currentPass = pass;
 		}
 
 		public void BeginPassRestore(IGLEffect effect, IntPtr stateChanges)
@@ -1479,12 +1439,15 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void ApplyVertexAttributes(VertexBufferBinding[] bindings, int numBindings, bool bindingsUpdated, int baseVertex)
 		{
+			Console.WriteLine("ApplyVertexAttributes 1");
+			//BindPipeline();
 			// 8 todo
 			// throw new NotImplementedException();
 		}
 
 		public void ApplyVertexAttributes(VertexDeclaration vertexDeclaration, IntPtr ptr, int vertexOffset)
 		{
+			Console.WriteLine("ApplyVertexAttributes 2");
 			// 6 todo
 			//throw new NotImplementedException();
 		}
