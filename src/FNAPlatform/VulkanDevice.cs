@@ -12,6 +12,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -273,6 +274,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			var instance = new Instance(new InstanceCreateInfo
 			{
+				ApplicationInfo = new ApplicationInfo
+				{
+					ApiVersion = 4198400,
+				},
+				EnabledLayerNames = new [] {"VK_LAYER_KHRONOS_validation"},
+				//VK_EXT_debug_report
 				EnabledExtensionNames = new string[] {"VK_KHR_surface", "VK_KHR_win32_surface", "VK_EXT_debug_report"}
 			});
 
@@ -350,6 +357,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			var surfaceCaps = physicalDevice.GetSurfaceCapabilitiesKHR(surface);
 
 			QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+			if (!indices.GraphicsFamily.HasValue || !indices.PresentFamily.HasValue)
+			{
+				throw new Exception("YO INCOMPLETE");
+			}
 			uint graphicsQueueIndex = indices.GraphicsFamily.Value;
 			uint presentQueueIndex = indices.PresentFamily.Value;
 
@@ -362,8 +373,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			device = physicalDevice.CreateDevice(new DeviceCreateInfo
 			{
-				QueueCreateInfos = queueCreateInfos, EnabledFeatures = new PhysicalDeviceFeatures { },
-				EnabledExtensionNames = new string[] {"VK_KHR_swapchain"}
+				QueueCreateInfos = queueCreateInfos,
+				EnabledExtensionNames = new[] {"VK_KHR_swapchain"}
 			});
 
 			graphicsQueue = device.GetQueue(graphicsQueueIndex, 0);
@@ -901,26 +912,73 @@ namespace Microsoft.Xna.Framework.Graphics
 			Console.WriteLine(fname);
 			Console.WriteLine(vname);
 
-			var stages = new []
-			{
-				new PipelineShaderStageCreateInfo
+			var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo { });
+
+			PipelineShaderStageCreateInfo vertexCreateInfo = new PipelineShaderStageCreateInfo
 				{
 					Stage = ShaderStageFlags.Vertex,
 					Module = vshader,
 					Name = vname,
 				},
-				new PipelineShaderStageCreateInfo
+				fragmentCreateInfo = new PipelineShaderStageCreateInfo
 				{
 					Stage = ShaderStageFlags.Fragment,
 					Module = fshader,
 					Name = fname,
-				}
-			};
+				};
 
-			var trianglePipeline = device.CreateGraphicsPipelines(null, new []{new GraphicsPipelineCreateInfo
-			{
-				Stages = stages
-			}})[0];
+				var stages = new[] {vertexCreateInfo, fragmentCreateInfo};
+
+				//var stages = new PipelineShaderStageCreateInfo[0];
+
+
+				var createInfo = new GraphicsPipelineCreateInfo
+				{
+					Stages = new PipelineShaderStageCreateInfo[0],
+					VertexInputState = new PipelineVertexInputStateCreateInfo {},
+					InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
+					{
+						Topology = PrimitiveTopology.TriangleList // todo, case off of primitive type
+					},
+					ViewportState = new PipelineViewportStateCreateInfo
+					{
+						ViewportCount = 1,
+						ScissorCount = 1, // todo: unset causes wrongness, test this.
+					},
+					RasterizationState = new PipelineRasterizationStateCreateInfo
+					{
+						/*
+						 * PolygonMode = PolygonMode.Fill,
+				CullMode = (uint)CullModeFlags.None,
+				FrontFace = FrontFace.Clockwise,
+				LineWidth = 1.0f
+						 */
+						LineWidth = 1.0f,
+					},
+					MultisampleState = new PipelineMultisampleStateCreateInfo
+					{
+						RasterizationSamples = SampleCountFlags.Count1,
+					},
+					DepthStencilState = new PipelineDepthStencilStateCreateInfo { },
+					ColorBlendState = new PipelineColorBlendStateCreateInfo
+					{
+						Attachments = new [] {new PipelineColorBlendAttachmentState
+							{
+								ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B | ColorComponentFlags.A,
+							}
+						}
+					},
+					DynamicState = new PipelineDynamicStateCreateInfo
+					{
+						DynamicStates = new []{DynamicState.Viewport, DynamicState.Scissor}
+					},
+					Layout = layout,// todo
+					RenderPass = renderPass,
+				};
+				var pipelines = device.CreateGraphicsPipelines(null, new[] {createInfo});
+
+				var trianglePipeline = pipelines[0];
+
 
 			_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, trianglePipeline);
 			//_commandBuffer.CmdDraw(vertexCount, instanceCount, firstVertex, firstInstance);
