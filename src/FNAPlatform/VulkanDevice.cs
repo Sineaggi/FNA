@@ -24,6 +24,7 @@ using SDL2;
 using Vulkan;
 using Vulkan.Windows;
 using Buffer = Vulkan.Buffer;
+using Queue = Vulkan.Queue;
 
 #endregion
 
@@ -82,6 +83,264 @@ namespace Microsoft.Xna.Framework.Graphics
 		}
 
 		#endregion
+
+				#region XNA->GL Enum Conversion Class
+
+		private static class XNAToVK
+		{
+			public static readonly Format[] TextureFormat = new Format[]
+			{
+				Format.R8G8B8Unorm,	// SurfaceFormat.Color
+				Format.B5G6R5UnormPack16,	// SurfaceFormat.Bgr565
+				Format.B5G5R5A1UnormPack16,	// SurfaceFormat.Bgra5551
+				Format.B4G4R4A4UnormPack16,	// SurfaceFormat.Bgra4444
+				Format.Bc1RgbaUnormBlock,	// SurfaceFormat.Dxt1
+				Format.Bc2UnormBlock,	// SurfaceFormat.Dxt3
+				Format.Bc3UnormBlock,	// SurfaceFormat.Dxt5
+				Format.R8G8Snorm,	// SurfaceFormat.NormalizedByte2
+				Format.Undefined,	// SurfaceFormat.NormalizedByte4
+				Format.A2R10G10B10UnormPack32, // todo: unsupported format?	// SurfaceFormat.Rgba1010102
+				Format.R16G16Unorm,	// SurfaceFormat.Rg32
+				Format.R16G16B16A16Unorm,	// SurfaceFormat.Rgba64
+				Format.R8Unorm,		// SurfaceFormat.Alpha8
+				Format.R32Sfloat,	// SurfaceFormat.Single
+				Format.R32G32Sfloat,	// SurfaceFormat.Vector2
+				Format.R32G32B32A32Sfloat,	// SurfaceFormat.Vector4
+				Format.R16Sfloat,	// SurfaceFormat.HalfSingle
+				Format.R16G16Sfloat,	// SurfaceFormat.HalfVector2
+				Format.R16G16B16A16Sfloat,	// SurfaceFormat.HalfVector4
+				Format.R16G16B16A16Sfloat,	// SurfaceFormat.HdrBlendable
+				Format.B8G8R8A8Unorm,	// SurfaceFormat.ColorBgraEXT
+			};
+
+			public static readonly MojoShader.MOJOSHADER_usage[] VertexAttribUsage = new MojoShader.MOJOSHADER_usage[]
+			{
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_POSITION,		// VertexElementUsage.Position
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_COLOR,		// VertexElementUsage.Color
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TEXCOORD,		// VertexElementUsage.TextureCoordinate
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_NORMAL,		// VertexElementUsage.Normal
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BINORMAL,		// VertexElementUsage.Binormal
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TANGENT,		// VertexElementUsage.Tangent
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BLENDINDICES,	// VertexElementUsage.BlendIndices
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BLENDWEIGHT,	// VertexElementUsage.BlendWeight
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_DEPTH,		// VertexElementUsage.Depth
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_FOG,		// VertexElementUsage.Fog
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_POINTSIZE,		// VertexElementUsage.PointSize
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_SAMPLE,		// VertexElementUsage.Sample
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TESSFACTOR		// VertexElementUsage.TessellateFactor
+			};
+
+			// "A bit confusingly, the formats are specified using the same enumeration as color formats"
+			// source: https://vulkan-tutorial.com/Vertex_buffers/Vertex_input_description
+			public static readonly Format[] VertexAttribType = new Format[]
+			{
+				Format.R32Sfloat,			// VertexElementFormat.Single
+				Format.R32G32Sfloat,			// VertexElementFormat.Vector2
+				Format.R32G32B32Sfloat,			// VertexElementFormat.Vector3
+				Format.R32G32B32A32Sfloat,			// VertexElementFormat.Vector4
+				Format.R8G8B8A8Unorm,	// VertexElementFormat.Color
+				Format.R8G8B8A8Uint,			// VertexElementFormat.Byte4
+				Format.R16G16Sint,			// VertexElementFormat.Short2
+				Format.R16G16B16A16Sint,			// VertexElementFormat.Short4
+				Format.R16G16Snorm,	// VertexElementFormat.NormalizedShort2
+				Format.R16G16B16A16Snorm,	// VertexElementFormat.NormalizedShort4
+				Format.R16G16Sfloat,			// VertexElementFormat.HalfVector2
+				Format.R16G16B16A16Sfloat,			// VertexElementFormat.HalfVector4
+			};
+
+			public static readonly IndexType[] IndexType = new IndexType[]
+			{
+				Vulkan.IndexType.Uint16,	// IndexElementSize.SixteenBits
+				Vulkan.IndexType.Uint32,	// IndexElementSize.ThirtyTwoBits
+			};
+
+			public static readonly int[] IndexSize = new int[]
+			{
+				2,	// IndexElementSize.SixteenBits
+				4	// IndexElementSize.ThirtyTwoBits
+			};
+
+			public static readonly BlendFactor[] BlendMode = new BlendFactor[]
+			{
+
+				Vulkan.BlendFactor.One,			// Blend.One
+				Vulkan.BlendFactor.Zero,			// Blend.Zero
+				Vulkan.BlendFactor.SrcColor,		// Blend.SourceColor
+				Vulkan.BlendFactor.OneMinusDstColor,	// Blend.InverseSourceColor
+				Vulkan.BlendFactor.SrcAlpha,		// Blend.SourceAlpha
+				Vulkan.BlendFactor.OneMinusSrcAlpha,	// Blend.InverseSourceAlpha
+				Vulkan.BlendFactor.DstColor,	// Blend.DestinationColor
+				Vulkan.BlendFactor.OneMinusDstColor,// Blend.InverseDestinationColor
+				Vulkan.BlendFactor.DstAlpha,	// Blend.DestinationAlpha
+				Vulkan.BlendFactor.OneMinusDstAlpha,// Blend.InverseDestinationAlpha
+				Vulkan.BlendFactor.ConstantColor,		// Blend.BlendFactor
+				Vulkan.BlendFactor.OneMinusConstantColor,	// Blend.InverseBlendFactor
+				Vulkan.BlendFactor.SrcAlphaSaturate,	// Blend.SourceAlphaSaturation
+			};
+
+			public static readonly BlendOp[] BlendOperation = new BlendOp[]
+			{
+				BlendOp.Add,			// BlendFunction.Add
+				BlendOp.Subtract,		// BlendFunction.Subtract
+				BlendOp.ReverseSubtract,	// BlendFunction.ReverseSubtract
+				BlendOp.Max,			// BlendFunction.Max
+				BlendOp.Min,			// BlendFunction.Min
+			};
+
+			public static int ColorWriteMask(ColorWriteChannels channels)
+			{
+				if (channels == ColorWriteChannels.None)
+				{
+					return 0x0;
+				}
+				if (channels == ColorWriteChannels.All)
+				{
+					return 0xf;
+				}
+
+				int ret = 0;
+				if ((channels & ColorWriteChannels.Red) != 0)
+				{
+					ret |= (0x1 << 3);
+				}
+				if ((channels & ColorWriteChannels.Green) != 0)
+				{
+					ret |= (0x1 << 2);
+				}
+				if ((channels & ColorWriteChannels.Blue) != 0)
+				{
+					ret |= (0x1 << 1);
+				}
+				if ((channels & ColorWriteChannels.Alpha) != 0)
+				{
+					ret |= (0x1 << 0);
+				}
+				return ret;
+			}
+
+			public static readonly CompareOp[] CompareFunc = new CompareOp[]
+			{
+				CompareOp.Always,	// CompareFunction.Always
+				CompareOp.Never,	// CompareFunction.Never
+				CompareOp.Less,	// CompareFunction.Less
+				CompareOp.LessOrEqual,	// CompareFunction.LessEqual
+				CompareOp.Equal,	// CompareFunction.Equal
+				CompareOp.GreaterOrEqual,// CompareFunction.GreaterEqual
+				CompareOp.Greater,	// CompareFunction.Greater
+				CompareOp.NotEqual	// CompareFunction.NotEqual
+			};
+
+
+
+			public static readonly StencilOp[] StencilOp = new StencilOp[]
+			{
+				Vulkan.StencilOp.Keep,		// StencilOperation.Keep
+				Vulkan.StencilOp.Zero,		// StencilOperation.Zero
+				Vulkan.StencilOp.Replace,		// StencilOperation.Replace
+				Vulkan.StencilOp.IncrementAndWrap,	// StencilOperation.Increment
+				Vulkan.StencilOp.DecrementAndWrap,	// StencilOperation.Decrement
+				Vulkan.StencilOp.IncrementAndClamp,	// StencilOperation.IncrementSaturation
+				Vulkan.StencilOp.DecrementAndClamp,	// StencilOperation.DecrementSaturation
+				Vulkan.StencilOp.Invert		// StencilOperation.Invert
+			};
+
+			public static readonly PolygonMode[] FillMode = new Vulkan.PolygonMode[]
+			{
+				PolygonMode.Fill,	// FillMode.Solid
+				PolygonMode.Line	// FillMode.WireFrame
+			};
+
+			public static readonly float[] DepthBiasScale = new float[]
+			{
+				0.0f,				// DepthFormat.None
+				(float) ((1 << 16) - 1),	// DepthFormat.Depth16
+				(float) ((1 << 24) - 1),	// DepthFormat.Depth24
+				(float) ((1 << 24) - 1)		// DepthFormat.Depth24Stencil8
+			};
+
+			public static readonly CullModeFlags[] CullingEnabled = new CullModeFlags[]
+			{
+				CullModeFlags.None,	// CullMode.None
+				CullModeFlags.Front,	// CullMode.CullClockwiseFace
+				CullModeFlags.Back	// CullMode.CullCounterClockwiseFace
+			};
+
+			public static readonly SamplerAddressMode[] Wrap = new SamplerAddressMode[]
+			{
+				SamplerAddressMode.Repeat,		// TextureAddressMode.Wrap
+				SamplerAddressMode.ClampToEdge,	// TextureAddressMode.Clamp
+				SamplerAddressMode.MirroredRepeat	// TextureAddressMode.Mirror
+			};
+
+			public static readonly Filter[] MagFilter = new Filter[]
+			{
+				Filter.Linear,	// TextureFilter.Linear
+				Filter.Nearest,	// TextureFilter.Point
+				Filter.Linear,	// TextureFilter.Anisotropic
+				Filter.Linear,	// TextureFilter.LinearMipPoint
+				Filter.Nearest,	// TextureFilter.PointMipLinear
+				Filter.Nearest,	// TextureFilter.MinLinearMagPointMipLinear
+				Filter.Nearest,	// TextureFilter.MinLinearMagPointMipPoint
+				Filter.Linear,	// TextureFilter.MinPointMagLinearMipLinear
+				Filter.Linear	// TextureFilter.MinPointMagLinearMipPoint
+			};
+
+			public static readonly Filter[] MipFilter = new Filter[]
+			{
+				Filter.Linear,	// TextureFilter.Linear
+				Filter.Nearest,	// TextureFilter.Point
+				Filter.Linear,	// TextureFilter.Anisotropic
+				Filter.Nearest,	// TextureFilter.LinearMipPoint
+				Filter.Linear,	// TextureFilter.PointMipLinear
+				Filter.Linear,	// TextureFilter.MinLinearMagPointMipLinear
+				Filter.Nearest,	// TextureFilter.MinLinearMagPointMipPoint
+				Filter.Linear,	// TextureFilter.MinPointMagLinearMipLinear
+				Filter.Nearest	// TextureFilter.MinPointMagLinearMipPoint
+			};
+
+			public static readonly Filter[] MinFilter = new Filter[]
+			{
+				Filter.Linear,	// TextureFilter.Linear
+				Filter.Nearest,	// TextureFilter.Point
+				Filter.Linear,	// TextureFilter.Anisotropic
+				Filter.Linear,	// TextureFilter.LinearMipPoint
+				Filter.Nearest,	// TextureFilter.PointMipLinear
+				Filter.Linear,	// TextureFilter.MinLinearMagPointMipLinear
+				Filter.Linear,	// TextureFilter.MinLinearMagPointMipPoint
+				Filter.Nearest,	// TextureFilter.MinPointMagLinearMipLinear
+				Filter.Nearest	// TextureFilter.MinPointMagLinearMipPoint
+			};
+
+			public static readonly PrimitiveTopology[] Primitive = new PrimitiveTopology[]
+			{
+				PrimitiveTopology.TriangleList,	// PrimitiveType.TriangleList
+				PrimitiveTopology.TriangleStrip,	// PrimitiveType.TriangleStrip
+				PrimitiveTopology.LineList,		// PrimitiveType.LineList
+				PrimitiveTopology.LineStrip,	// PrimitiveType.LineStrip
+				PrimitiveTopology.PointList		// PrimitiveType.PointListEXT
+			};
+
+			public static int PrimitiveVerts(PrimitiveType primitiveType, int primitiveCount)
+			{
+				switch (primitiveType)
+				{
+					case PrimitiveType.TriangleList:
+						return primitiveCount * 3;
+					case PrimitiveType.TriangleStrip:
+						return primitiveCount + 2;
+					case PrimitiveType.LineList:
+						return primitiveCount * 2;
+					case PrimitiveType.LineStrip:
+						return primitiveCount + 1;
+					case PrimitiveType.PointListEXT:
+						return primitiveCount;
+				}
+				throw new NotSupportedException();
+			}
+		}
+
+		#endregion
+
 
 		#region The Faux-Backbuffer
 
@@ -276,7 +535,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				ApplicationInfo = new ApplicationInfo
 				{
-					ApiVersion = 4198400,
+					ApiVersion = 4194304, // 1.0
+					//ApiVersion = 4198400, // 1.1
 				},
 				EnabledLayerNames = new [] {"VK_LAYER_KHRONOS_validation"},
 				//VK_EXT_debug_report
@@ -432,6 +692,39 @@ namespace Microsoft.Xna.Framework.Graphics
 			FNALoggerEXT.LogInfo("Device Name: " + physicalDevice.GetProperties().DeviceName);
 			FNALoggerEXT.LogInfo("MojoShader Profile: metal"); // todo: mojo spirv?
 
+			/*
+			try
+			{
+				var managedArray = File.ReadAllBytes("jella.monk.fe_ShaderFunction24_first.frag");
+				uint[] decoded = new uint[managedArray.Length / 4];
+				System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
+				var kk1 = device.CreateShaderModule(new ShaderModuleCreateInfo
+				{
+					Code = decoded
+				});
+
+				Console.WriteLine($"Got {kk1}");
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e.Message);
+			}
+			try {
+				var managedArray = File.ReadAllBytes("jella.monk.fe_ShaderFunction4_first.vert");
+				uint[] decoded = new uint[managedArray.Length / 4];
+				System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
+				var kk1 = device.CreateShaderModule(new ShaderModuleCreateInfo
+				{
+					Code = decoded
+				});
+
+				Console.WriteLine($"Got {kk1}");
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e.Message);
+			}
+			*/
 			/*
 			// Some users might want pixely upscaling...
 			backbufferScaleMode = Environment.GetEnvironmentVariable(
@@ -877,9 +1170,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			var feld = typeof(ShaderModule).GetField("m", BindingFlags.NonPublic | BindingFlags.Instance);
 			unsafe
 			{
+				MojoShader.MOJOSHADER_vkLinkProgram(shaderState.vertexShader, shaderState.fragmentShader);
+
 				//var entrypoint = Marshal.PtrToStringAnsi(parseData.mainfn);
 				var fpd = ((MojoShader.MOJOSHADER_parseData*)
 					((MojoShader.MOJOSHADER_vkShader*) shaderState.fragmentShader)->parseData);
+
 				fname = Marshal.PtrToStringAnsi(
 					((MojoShader.MOJOSHADER_parseData*)
 						((MojoShader.MOJOSHADER_vkShader*) shaderState.fragmentShader)->parseData)->mainfn);
@@ -892,19 +1188,20 @@ namespace Microsoft.Xna.Framework.Graphics
 				var sm = vert->shaderModule;
 				UInt64 sss = (UInt64) sm;
 				var frag = ((MojoShader.MOJOSHADER_vkShader*) shaderState.fragmentShader);
-				var fshrptr = (ulong)(frag->shaderModule.ToInt64());
+				var fshrptr = frag->shaderModule;
 				object f = fshader;
 				feld.SetValue(f, fshrptr);
 
-				vname = Marshal.PtrToStringAnsi(
-					((MojoShader.MOJOSHADER_parseData*)
-						((MojoShader.MOJOSHADER_vkShader*) shaderState.vertexShader)->parseData)->mainfn);
+				var vparseData = (MojoShader.MOJOSHADER_parseData*)
+					((MojoShader.MOJOSHADER_vkShader*) shaderState.vertexShader)->parseData;
+				vname = Marshal.PtrToStringAnsi(vparseData->mainfn);
+				ShaderModule sh1 = profileCompileShader(*vparseData);
 
 				vshader = (ShaderModule) typeof(ShaderModule).GetConstructor(
 					BindingFlags.NonPublic | BindingFlags.Instance,
 					null, Type.EmptyTypes, null).Invoke(null);
 
-				var vshrptr = (ulong)(vert->shaderModule.ToInt64());
+				var vshrptr = vert->shaderModule;
 				object v = vshader;
 				feld.SetValue(v, vshrptr);
 			}
@@ -912,7 +1209,26 @@ namespace Microsoft.Xna.Framework.Graphics
 			Console.WriteLine(fname);
 			Console.WriteLine(vname);
 
-			var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo { });
+			var kjola = device.CreateDescriptorSetLayout(new DescriptorSetLayoutCreateInfo
+			{
+				Bindings = new DescriptorSetLayoutBinding[] {new DescriptorSetLayoutBinding
+				{
+					DescriptorType = DescriptorType.UniformBuffer,
+					StageFlags = ShaderStageFlags.Vertex,
+					Binding = 1,
+					DescriptorCount = 1,
+					ImmutableSamplers = new Sampler[] {},
+				}},
+			});
+
+		var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo
+			{
+				SetLayouts = new DescriptorSetLayout[]
+				{
+					kjola
+				},
+				PushConstantRanges = new PushConstantRange[] {},
+			});
 
 			PipelineShaderStageCreateInfo vertexCreateInfo = new PipelineShaderStageCreateInfo
 				{
@@ -934,7 +1250,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				var createInfo = new GraphicsPipelineCreateInfo
 				{
-					Stages = new PipelineShaderStageCreateInfo[0],
+					Stages = stages,
 					VertexInputState = new PipelineVertexInputStateCreateInfo {},
 					InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
 					{
@@ -1101,10 +1417,90 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
+		private class VulkanTexture : IGLTexture
+		{
+			public uint Handle
+			{
+				get;
+				private set;
+			}
+
+			public bool HasMipmaps
+			{
+				get;
+				private set;
+			}
+
+			public TextureAddressMode WrapS;
+			public TextureAddressMode WrapT;
+			public TextureAddressMode WrapR;
+			public TextureFilter Filter;
+			public float Anistropy;
+			public int MaxMipmapLevel;
+			public float LODBias;
+
+			//public DeviceSize ImageSize;
+			//public Buffer Buffer;
+			//public DeviceMemory DeviceMemory;
+			public uint Width;
+			public uint Height;
+
+			public Image Image;
+			public DeviceMemory ImageMemory;
+
+			public VulkanTexture(
+				//DeviceSize imageSize,
+				//Buffer buffer,
+				//DeviceMemory deviceMemory,
+				uint width,
+				uint height,
+				int levelCount
+			) {
+				HasMipmaps = levelCount > 1;
+				//ImageSize = imageSize;
+				//Buffer = buffer;
+				//DeviceMemory = deviceMemory;
+				Width = width;
+				Height = height;
+
+				WrapS = TextureAddressMode.Wrap;
+				WrapT = TextureAddressMode.Wrap;
+				WrapR = TextureAddressMode.Wrap;
+				Filter = TextureFilter.Linear;
+				Anistropy = 4.0f;
+				MaxMipmapLevel = 0;
+				LODBias = 0.0f;
+			}
+
+			/*
+			// We can't set a SamplerState Texture to null, so use this.
+			private VulkanTexture()
+			{
+				Handle = 0;
+				Target = GLenum.GL_TEXTURE_2D; // FIXME: Assumption! -flibit
+			}
+			public static readonly OpenGLTexture NullTexture = new OpenGLTexture();
+			*/
+		}
+
 		public IGLTexture CreateTexture2D(SurfaceFormat format, int width, int height, int levelCount,
 			bool isRenderTarget)
 		{
-			throw new NotImplementedException();
+			// todo: use SurfaceFormat
+
+			Debug.Assert(width > 0);
+			Debug.Assert(height > 0);
+			return new VulkanTexture((uint)width, (uint)height, levelCount);
+
+			/*
+			void* data;
+			vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+			memcpy(data, pixels, static_cast<size_t>(imageSize));
+			vkUnmapMemory(device, stagingBufferMemory);
+			*/
+			// for an image, todo
+			//throw new NotImplementedException();
+			return null;
 		}
 
 		public IGLTexture CreateTexture3D(SurfaceFormat format, int width, int height, int depth, int levelCount)
@@ -1122,11 +1518,93 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
+		CommandBuffer beginSingleTimeCommands()
+		{
+			var commandBuffer = device.AllocateCommandBuffers(new CommandBufferAllocateInfo
+			{
+				Level = CommandBufferLevel.Primary,
+				CommandPool = commandPool,
+				CommandBufferCount = 1,
+			})[0];
+
+			commandBuffer.Begin(new CommandBufferBeginInfo
+			{
+				Flags = CommandBufferUsageFlags.OneTimeSubmit,
+			});
+
+			return commandBuffer;
+		}
+
+		void endSingleTimeCommands(CommandBuffer commandBuffer)
+		{
+			commandBuffer.End();
+
+			graphicsQueue.Submit(new SubmitInfo
+			{
+				CommandBuffers = new []{commandBuffer},
+			});
+			graphicsQueue.WaitIdle();
+
+			device.FreeCommandBuffer(commandPool, commandBuffer);
+		}
+
 		public void SetTextureData2D(IGLTexture texture, SurfaceFormat format, int x, int y, int w, int h, int level,
 			IntPtr data,
 			int dataLength)
 		{
-			throw new NotImplementedException();
+			var vulkanTexture = texture as VulkanTexture;
+			var width = vulkanTexture.Width;
+			var height = vulkanTexture.Height;
+			DeviceSize imageSize = width * height * 4;
+
+			createBuffer(imageSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
+
+			Console.WriteLine($"Are they the same? {imageSize} == {dataLength}");
+
+			var dst = device.MapMemory(stagingBufferMemory, 0, imageSize, 0);
+			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
+			device.UnmapMemory(stagingBufferMemory);
+
+			createImage(width, height, Format.R8G8B8A8Srgb, ImageTiling.Optimal, ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled, MemoryPropertyFlags.DeviceLocal, out var textureImage, out var textureImageMemory);
+
+			transitionImageLayout(textureImage, Format.R8G8B8A8Srgb, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
+			copyBufferToImage(stagingBuffer, textureImage, width, height);
+			transitionImageLayout(textureImage, Format.R8G8B8A8Srgb, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+
+			device.DestroyBuffer(stagingBuffer);
+			device.FreeMemory(stagingBufferMemory);
+
+			vulkanTexture.Image = textureImage;
+			vulkanTexture.ImageMemory = textureImageMemory;
+		}
+		void createImage(uint width, uint height, Format format, ImageTiling tiling, ImageUsageFlags usage, MemoryPropertyFlags properties, out Image image, out DeviceMemory imageMemory) {
+
+			image = device.CreateImage(new ImageCreateInfo
+			{
+				ImageType = ImageType.Image2D,
+				Extent = new Extent3D
+				{
+					Width = width,
+					Height = height,
+					Depth = 1,
+				},
+				MipLevels = 1, // todo
+				ArrayLayers = 1,
+				Format = format,
+				Tiling = tiling,
+				InitialLayout = ImageLayout.Undefined,
+				Usage = usage,
+				SharingMode = SharingMode.Exclusive,
+				Samples = SampleCountFlags.Count1,
+			});
+
+			var memRequirements = device.GetImageMemoryRequirements(image);
+			imageMemory = device.AllocateMemory(new MemoryAllocateInfo
+			{
+				AllocationSize = memRequirements.Size,
+				MemoryTypeIndex = findMemoryType(memRequirements.MemoryTypeBits, properties),
+			});
+			device.BindImageMemory(image, imageMemory, 0);
 		}
 
 		public void SetTextureData3D(IGLTexture texture, SurfaceFormat format, int level, int left, int top, int right,
@@ -1218,8 +1696,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			for (uint i = 0; i < memProperties.MemoryTypeCount; ++i)
 			{
-				// memPropertiesMemoryType.PropertyFlags & memoryTypeBits
-				return i;
+				if (Convert.ToBoolean(memoryTypeBits & 1 << (int) i) &&
+				    memProperties.MemoryTypes[i].PropertyFlags.HasFlag(properties))
+				{
+					return i;
+				}
+
 			}
 			throw new Exception("Could not find a supported memory type that supported " + memoryTypeBits);
 		}
@@ -1271,21 +1753,93 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private void copyBuffer(Buffer srcBuffer, Buffer dstBuffer, DeviceSize size)
 		{
-			// todo: we might need to know where in the vulkan stack we are before we can begin this
-
-			var commandBuffers = device.AllocateCommandBuffers(new CommandBufferAllocateInfo
-				{Level = CommandBufferLevel.Primary, CommandPool = commandPool, CommandBufferCount = 1});
-			var commandBuffer = commandBuffers[0];
-			commandBuffer.Begin(new CommandBufferBeginInfo { Flags = CommandBufferUsageFlags.OneTimeSubmit});
+			var commandBuffer = beginSingleTimeCommands();
 
 			commandBuffer.CmdCopyBuffer(srcBuffer, dstBuffer, new BufferCopy { Size = size});
 
-			commandBuffer.End();
+			endSingleTimeCommands(commandBuffer);
+		}
 
-			graphicsQueue.Submit(new SubmitInfo { CommandBufferCount = 1, CommandBuffers = commandBuffers});
-			graphicsQueue.WaitIdle();
+		void transitionImageLayout(Image image, Format format, ImageLayout oldLayout, ImageLayout newLayout) {
+			CommandBuffer commandBuffer = beginSingleTimeCommands();
 
-			device.FreeCommandBuffers(commandPool, commandBuffers);
+			var barrier = new ImageMemoryBarrier
+			{
+				OldLayout = oldLayout,
+				NewLayout = newLayout,
+				SrcQueueFamilyIndex = ~0U,
+				DstQueueFamilyIndex = ~0U,
+				Image = image,
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = ImageAspectFlags.Color,
+					BaseMipLevel = 0,
+					LevelCount = 1,
+					BaseArrayLayer = 0,
+					LayerCount = 1,
+				},
+			};
+
+			PipelineStageFlags sourceStage;
+			PipelineStageFlags destinationStage;
+
+			if (oldLayout == ImageLayout.Undefined && newLayout == ImageLayout.TransferDstOptimal)
+			{
+				barrier.SrcAccessMask = 0;
+				barrier.DstAccessMask = AccessFlags.TransferWrite;
+
+				sourceStage = PipelineStageFlags.TopOfPipe;
+				destinationStage = PipelineStageFlags.Transfer;
+			} else if (oldLayout == ImageLayout.TransferDstOptimal && newLayout == ImageLayout.ShaderReadOnlyOptimal)
+			{
+				barrier.SrcAccessMask = AccessFlags.TransferWrite;
+				barrier.DstAccessMask = AccessFlags.ShaderRead;
+
+				sourceStage = PipelineStageFlags.Transfer;
+				destinationStage = PipelineStageFlags.FragmentShader;
+			}
+			else
+			{
+				throw new Exception("unsupported layout transition!");
+			}
+
+			commandBuffer.CmdPipelineBarrier(sourceStage, destinationStage,
+				0,
+				null,
+				null,
+				barrier);
+
+			endSingleTimeCommands(commandBuffer);
+		}
+
+		void copyBufferToImage(Buffer buffer, Image image, uint width, uint height) {
+			CommandBuffer commandBuffer = beginSingleTimeCommands();
+
+			commandBuffer.CmdCopyBufferToImage(buffer, image, ImageLayout.TransferDstOptimal, new BufferImageCopy
+			{
+				BufferOffset = 0,
+				BufferRowLength = 0,
+				BufferImageHeight = 0,
+				ImageSubresource = new ImageSubresourceLayers
+				{
+					AspectMask = ImageAspectFlags.Color,
+					MipLevel = 0,
+					BaseArrayLayer = 0,
+					LayerCount = 1,
+				},
+				ImageOffset = new Offset3D
+				{
+					X = 0, Y = 0, Z = 0
+				},
+				ImageExtent = new Extent3D
+				{
+					Width = width,
+					Height = height,
+					Depth = 1,
+				}
+			});
+
+			endSingleTimeCommands(commandBuffer);
 		}
 
 		public void SetIndexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int dataLength, SetDataOptions options)
@@ -1299,7 +1853,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			DeviceMemory stagingBufferMemory;
 			createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out stagingBuffer, out stagingBufferMemory);
 
-			return; // todo: returning early as the next function fails. not sure why.
+			// return; // todo: returning early as the next function fails. not sure why.
 
 			var dst = device.MapMemory(stagingBufferMemory, offsetInBytes, bufferSize, 0);
 			var len = (IntPtr) dataLength;
@@ -1391,8 +1945,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			var vulkanEffect = new VulkanEffect(effect, vkEffect);
 
 			//var shaderBundles = new List<ShaderBundle>();
-			if (false)
-			{
+			//if (false)
+			//{
 				unsafe
 				{
 					MojoShader.MOJOSHADER_effect* effectPtr = (MojoShader.MOJOSHADER_effect*) effect;
@@ -1450,7 +2004,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					}
 
 				}
-			}
+			//}
 
 			//vulkanEffect.ShaderBundles = shaderBundles;
 			return vulkanEffect;
@@ -1470,9 +2024,17 @@ namespace Microsoft.Xna.Framework.Graphics
 			System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
 			// yes i copy once to byte[] then once to uint[]
 			// todo: it's a fucking hack.
-			var shaderModule = device.CreateShaderModule(new ShaderModuleCreateInfo
-				{Code = decoded});
-			return shaderModule;
+			try
+			{
+				return device.CreateShaderModule(new ShaderModuleCreateInfo
+					{Code = decoded});
+			}
+			catch (Exception e)
+			{
+				return null;
+			}
+
+			//return shaderModule;
 		}
 
 		public IGLEffect CloneEffect(IGLEffect effect)
