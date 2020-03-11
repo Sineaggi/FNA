@@ -12,6 +12,8 @@
 #region Using Statements
 
 using System;
+using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using Vulkan;
 
@@ -26,4 +28,33 @@ namespace Microsoft.Xna.Framework.Graphics
     VkInstance instance,
     VkSurfaceKHR* surface);
     */
+
+    class MyClass
+    {
+        public static T makeT<T>(ulong m)
+        {
+            var fieldInfo = typeof(T).GetField("m", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fieldInfo == null)
+            {
+                throw new Exception($"Runtime reflection failed to find field m for {typeof(T)}");
+            }
+
+            var constructor = typeof(T).GetConstructor(
+                BindingFlags.NonPublic | BindingFlags.Instance,
+                null, Type.EmptyTypes, null);
+            if (constructor == null)
+            {
+                throw new Exception($"Runtime reflection failed to find default constructor for {typeof(T)}");
+            }
+
+            Debug.Assert(fieldInfo != null);
+            var result = (T) constructor.Invoke(null);
+
+            object obj = result;
+            var value = m;
+            fieldInfo.SetValue(obj, value);
+
+            return result;
+        }
+    }
 }
