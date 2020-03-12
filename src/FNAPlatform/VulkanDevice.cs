@@ -1033,22 +1033,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
 				PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, null, null, renderBeginBarrier);
 
-			_commandBuffer.CmdBeginRenderPass(new RenderPassBeginInfo
-			{
-				RenderPass = renderPass,
-				Framebuffer = _framebuffers[imageIndex],
-				RenderArea = new Rect2D
-				{
-					Extent = new Extent2D
-					{
-						Width = width,
-						Height = height,
-					},
-					Offset = new Offset2D(),
-				},
-				ClearValues = getCurrentClearValues(),
-			}, SubpassContents.Inline);
-
 			_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
 			{
 				Height = height,
@@ -1072,32 +1056,27 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private ClearValue[] getCurrentClearValues()
 		{
-			if (_clearColorValue == null)
+			return new[] {new ClearValue { Color = new ClearColorValue
 			{
-				return new ClearValue[] {};
-			}
-			else
-			{
-				return new[] { new ClearValue
-				{
-					Color=_clearColorValue,
-				}};
-			}
+				Float32 = new[] {clearColor.X, clearColor.Y, clearColor.Z, clearColor.W},
+			} }};
 		}
-
-
 
 		public void SwapBuffers(Rectangle? sourceRectangle, Rectangle? destinationRectangle,
 			IntPtr overrideWindowHandle)
 		{
 			/* Just in case Present() is called
-			* before any rendering happens...
-			*/
+			 * before any rendering happens...
+			 */
 			BeginFrame();
+
+			// Bind the backbuffer and finalize rendering
+			// SetRenderTargets(null, null, DepthFormat.None); // todo
+			EndPass();
 
 			// todo: what to do if sourceRectangle or destinationRectangle are not null. Also what to do with windowhandle
 
-			_commandBuffer.CmdEndRenderPass();
+			//_commandBuffer.CmdEndRenderPass();
 
 			var renderEndBarrier = imageMemoryBarrierz(currentImage, AccessFlags.ColorAttachmentWrite, 0,
 				ImageLayout.ColorAttachmentOptimal, ImageLayout.PresentSrcKhr);
@@ -1175,6 +1154,98 @@ namespace Microsoft.Xna.Framework.Graphics
 			int numVertices,
 			IntPtr indexData, int indexOffset, IndexElementSize indexElementSize, int primitiveCount)
 		{
+			uint firstInstance = 0;
+			uint firstVertex = 0;
+			uint vertexCount;
+			if (primitiveType == PrimitiveType.TriangleList)
+			{
+				vertexCount = (uint)(3 * primitiveCount);
+			}
+			else
+			{
+				throw new Exception("Oh fuck");
+			}
+			uint instanceCount = 1;
+
+			//float[] probablyFloats = new float[vertexCount * 5];
+			//Marshal.Copy(vertexData, probablyFloats, 0,(int)(vertexCount * 5));
+
+			var data = vertexData;
+			var dataLength = vertexCount * /* size of data */ 5 * sizeof(float); // todo: actually calc this
+			DeviceSize bufferSize = dataLength;// sizeof(uint) * primitiveCount * 3;
+			createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
+			var dst = device.MapMemory(stagingBufferMemory, 0, bufferSize, 0);
+			SDL.SDL_memcpy(dst, data, (IntPtr)dataLength);
+			device.UnmapMemory(stagingBufferMemory);
+
+			createBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer | BufferUsageFlags.UniformBuffer, MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
+
+			copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+			var data2 = indexData;
+			int isize;
+			switch (indexElementSize)
+			{
+				case IndexElementSize.SixteenBits:
+					isize = sizeof(ushort);
+					break;
+				case IndexElementSize.ThirtyTwoBits:
+					isize = sizeof(uint);
+					break;
+				default:
+					throw new Exception("unknown size");
+			}
+			var dataLength2 = primitiveCount * 3 * /* size of data */ isize;  // todo: actually calc this
+			DeviceSize bufferSize2 = dataLength2;// sizeof(uint) * primitiveCount * 3;
+			createBuffer(bufferSize2, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer2, out var stagingBufferMemory2);
+			var dst2 = device.MapMemory(stagingBufferMemory2, 0, bufferSize2, 0);
+			SDL.SDL_memcpy(dst2, data2, (IntPtr)dataLength2);
+			device.UnmapMemory(stagingBufferMemory2);
+
+			createBuffer(bufferSize2, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer | BufferUsageFlags.UniformBuffer, MemoryPropertyFlags.DeviceLocal, out var indexBuffer, out var indexMemory);
+
+			copyBuffer(stagingBuffer2, indexBuffer, bufferSize2);
+
+
+			// vertexBuffer; // todo: not correct. uniform buffer = mvp matrix. that's how the data gets set.
+
+			//uniformBuffer = vertexBuffer; // glm? mvp? how to set data?
+
+
+			Buffer buffer;
+			DeviceSize bufferSizeii;
+			unsafe
+			{
+				var kkola = sizeof(MojoShader.MOJOSHADER_vkShaderState);
+
+				var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.fragmentUniformBuffer;
+				var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.vertexUniformBuffer;
+
+				if (vertexUniformBuffer != null)
+				{
+					var size = vertexUniformBuffer->size;
+					var bufferPtr = vertexUniformBuffer->buffer;
+					buffer = MyClass.makeT<Buffer>(bufferPtr);
+					bufferSizeii = size;
+				}
+				else
+				{
+					throw new Exception("Unset vertex buffer");
+				}
+
+				//var fragmentBufferSize = fragmentUniformBuffer->size;
+				//var vertexBufferSize = vertexUniformBuffer->size;
+			}
+
+			uniformBufferV = buffer;
+			uniformBufferSizeV = bufferSizeii;
+
+			UpdateDescriptorSets();
+			//_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[1], null);
+			//buffers [i].CmdBindVertexBuffer (0, vertexBuffer, 0);
+			_commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
+			_commandBuffer.CmdBindIndexBuffer(indexBuffer, 0, XNAToVK.IndexType[(int)indexElementSize]);
+			_commandBuffer.CmdDrawIndexed(6, 1, 0, 0, 0);
 		}
 
 		void getMaybeCachedShaders(out ShaderModule fshader, out String fname, out ShaderModule vshader, out String vname)
@@ -1223,223 +1294,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		public void DrawUserPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
 			int primitiveCount)
 		{
-			/*
-			*         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline);
-			vkCmdDraw(commandBuffer, 3, 1, 0, 0); // triangle
 
-
-
-			var vertexBuffer = vertexData;
-			var vertexBufferSize = primitiveCount * (sizeof(float) * 3);
-
-			var indexBuffer = new uint[primitiveCount * 3];
-			for (uint i = 0; i < primitiveCount * 3; i++)
-			{
-				indexBuffer[i] = i;
-			}
-			var indexBufferSize = indexBuffer.Length * sizeof(uint);
-
-			MemoryRequirements memReqs;
-			var memAlloc = new MemoryAllocateInfo();
-
-			// there are two types of allocation in vulkan. staging based and non staging based.
-			// since this data need be written every(?) frame, we will penalize the caller
-
-			//createBuffer();
-			var verticesBuffer = device.CreateBuffer(new BufferCreateInfo
-			{
-				Size = vertexBufferSize,
-				Usage = BufferUsageFlags.VertexBuffer,
-			});
-			memReqs = device.GetBufferMemoryRequirements(verticesBuffer);
-			memAlloc.AllocationSize = memReqs.Size;
-			memAlloc.MemoryTypeIndex = getMemoryTypeIndex(memReqs.MemoryTypeBits, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
-			var verticesMemory = device.AllocateMemory(memAlloc);
-			var data = device.MapMemory(verticesMemory, 0, memAlloc.AllocationSize);
-			SDL.SDL_memcpy(data, vertexData, (IntPtr)vertexBufferSize);
-			device.UnmapMemory(verticesMemory);
-			device.BindBufferMemory(verticesBuffer, verticesMemory, 0);
-*/
-			/*
-			 * 			VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &vertices.memory));
-			VK_CHECK_RESULT(vkMapMemory(device, vertices.memory, 0, memAlloc.allocationSize, 0, &data));
-			memcpy(data, vertexBuffer.data(), vertexBufferSize);
-			vkUnmapMemory(device, vertices.memory);
-			VK_CHECK_RESULT(vkBindBufferMemory(device, vertices.buffer, vertices.memory, 0));
-			 */
-
-			/*
-			var indexBufferInfo = new BufferCreateInfo
-			{
-				Size = indexBufferSize,
-				Usage = BufferUsageFlags.IndexBuffer,
-			};
-			var indicesBuffer = device.CreateBuffer(indexBufferInfo);
-			memReqs = device.GetBufferMemoryRequirements(indicesBuffer);
-			memAlloc.AllocationSize = memReqs.Size;
-			memAlloc.MemoryTypeIndex = getMemoryTypeIndex(memReqs.MemoryTypeBits, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);;
-			var indicesMemory = device.AllocateMemory(memAlloc);
-			data = device.MapMemory(indicesMemory, 0, memAlloc.AllocationSize);
-
-			GCHandle pinnedArray = GCHandle.Alloc(indexBuffer, GCHandleType.Pinned);
-			IntPtr pointer = pinnedArray.AddrOfPinnedObject();
-			// Do your stuff...
-			SDL.SDL_memcpy(data, (pointer), (IntPtr)indexBufferSize);
-			pinnedArray.Free();
-			device.UnmapMemory(indicesMemory);
-			device.BindBufferMemory(indicesBuffer, indicesMemory, 0);
-
-
-
-			Pipeline trianglePipeline = null;
-			uint vertexCount = (uint)primitiveCount;
-			uint instanceCount = (uint)1;
-			uint firstVertex = 0; // use vertexOffset here?
-			uint firstInstance = 0;
-*/
-
-			// todo: shader, bindpoints
-			// todo: maybe index buffer was uncecessary?
-			// since all this code assumed calling drawIndexed in the end, and I just wan to cmDdraw
-			// something about needing a pipeline tho? wtf
-
-			getMaybeCachedShaders(out var fshader, out var fname, out var vshader, out var vname);
-
-			Console.WriteLine(fname);
-			Console.WriteLine(vname);
-
-			var setLayout = device.CreateDescriptorSetLayout(new DescriptorSetLayoutCreateInfo
-			{
-				Bindings = new[]
-				{
-					new DescriptorSetLayoutBinding
-					{
-						DescriptorType = DescriptorType.StorageBuffer,
-						StageFlags = ShaderStageFlags.Vertex,
-						Binding = 1,
-						DescriptorCount = 1,
-					},
-					new DescriptorSetLayoutBinding
-					{
-						//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-						//DescriptorType = DescriptorType.UniformBufferDynamic,
-						//DescriptorType = DescriptorType.Blo // VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT
-						DescriptorType = DescriptorType.UniformBuffer,
-						StageFlags = ShaderStageFlags.Vertex,
-						Binding = 0,
-						DescriptorCount = 1,
-					},
-				},
-				//Flags = DescriptorSetLayoutCreateFlags.PushDescriptorKhr
-			});
-			_setLayout = setLayout;
-
-			var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo
-			{
-				SetLayouts = new[] {setLayout},
-				//PushConstantRanges = new PushConstantRange[] { },
-			});
-
-			PipelineShaderStageCreateInfo vertexCreateInfo = new PipelineShaderStageCreateInfo
-				{
-					Stage = ShaderStageFlags.Vertex,
-					Module = vshader,
-					Name = vname,
-				},
-				fragmentCreateInfo = new PipelineShaderStageCreateInfo
-				{
-					Stage = ShaderStageFlags.Fragment,
-					Module = fshader,
-					Name = fname,
-				};
-
-			var stages = new[] {vertexCreateInfo, fragmentCreateInfo};
-
-			//var stages = new PipelineShaderStageCreateInfo[0];
-
-			unsafe
-			{
-				var floats = (float*) vertexData;
-				var kk = floats[0];
-			}
-
-			var createInfo = new GraphicsPipelineCreateInfo
-			{
-				Stages = stages,
-
-				VertexInputState = new PipelineVertexInputStateCreateInfo
-				{
-					VertexAttributeDescriptions = new VertexInputAttributeDescription[]
-					{
-						new VertexInputAttributeDescription
-						{
-							// todo: all of this is hardcoded. why?
-							Binding = 0,
-							Format = Format.R32G32B32Sfloat, // IMPORTANT NOTE: this is set to 3 floats, not 4.
-							Location = 0,
-							Offset = 0,
-						}
-					},
-					VertexBindingDescriptions = new VertexInputBindingDescription[]
-					{
-						new VertexInputBindingDescription
-						{
-							// todo: all of this is hardcoded. why?
-							Binding = 0,
-							Stride = 5 * sizeof(float), // 5 floats
-							InputRate = VertexInputRate.Vertex,
-						}
-					},
-				},
-
-				InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
-				{
-					Topology = PrimitiveTopology.TriangleList // todo, case off of primitive type
-				},
-				ViewportState = new PipelineViewportStateCreateInfo
-				{
-					ViewportCount = 1,
-					ScissorCount = 1, // todo: unset causes wrongness, test this.
-				},
-				RasterizationState = new PipelineRasterizationStateCreateInfo
-				{
-					/*
-					 * PolygonMode = PolygonMode.Fill,
-			CullMode = (uint)CullModeFlags.None,
-			FrontFace = FrontFace.Clockwise,
-			LineWidth = 1.0f
-					 */
-					LineWidth = 1.0f,
-				},
-				MultisampleState = new PipelineMultisampleStateCreateInfo
-				{
-					RasterizationSamples = SampleCountFlags.Count1,
-				},
-				DepthStencilState = new PipelineDepthStencilStateCreateInfo { },
-				ColorBlendState = new PipelineColorBlendStateCreateInfo
-				{
-					Attachments = new[]
-					{
-						new PipelineColorBlendAttachmentState
-						{
-							ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B |
-							                 ColorComponentFlags.A,
-						}
-					}
-				},
-				DynamicState = new PipelineDynamicStateCreateInfo
-				{
-					DynamicStates = new[] {DynamicState.Viewport, DynamicState.Scissor}
-				},
-				Layout = layout,
-				RenderPass = renderPass,
-			};
-			var pipelines = device.CreateGraphicsPipelines(null, new[] {createInfo});
-
-			var trianglePipeline = pipelines[0];
-
-
-			_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, trianglePipeline);
 			uint firstInstance = 0;
 			uint firstVertex = 0;
 			uint vertexCount;
@@ -1474,39 +1329,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			//uniformBuffer = vertexBuffer; // glm? mvp? how to set data?
 
 
-			Buffer buffer;
-			DeviceSize bufferSizeii;
-			unsafe
-			{
-				var kkola = sizeof(MojoShader.MOJOSHADER_vkShaderState);
 
-				var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.fragmentUniformBuffer;
-				var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.vertexUniformBuffer;
-
-				if (vertexUniformBuffer != null)
-				{
-					var size = vertexUniformBuffer->size;
-					var bufferPtr = vertexUniformBuffer->buffer;
-					buffer = MyClass.makeT<Buffer>(bufferPtr);
-					bufferSizeii = size;
-				}
-				else
-				{
-					throw new Exception("Unset vertex buffer");
-				}
-
-				//var fragmentBufferSize = fragmentUniformBuffer->size;
-				//var vertexBufferSize = vertexUniformBuffer->size;
-			}
-
-			uniformBuffer = buffer;
-			uniformBufferSize = bufferSizeii;
-
-			descriptorSets = CreateDescriptorSets();
-			UpdateDescriptorSets();
-			_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[0], null);
 			//_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[1], null);
 			//buffers [i].CmdBindVertexBuffer (0, vertexBuffer, 0);
+			//_commandBuffer.CmdBindIndexBuffer(userIndexBuffer, 0, IndexType.Uint16);
 			_commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
 			_commandBuffer.CmdDraw(vertexCount, instanceCount, firstVertex, firstInstance);
 
@@ -1538,15 +1364,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			return device.AllocateDescriptorSets (descriptorSetAllocateInfo);
 		}
 
-		private Buffer uniformBuffer;
-		private DeviceSize uniformBufferSize;
+		private Buffer uniformBufferV;
+		private DeviceSize uniformBufferSizeV;
 
 		void UpdateDescriptorSets ()
 		{
 			var uniformBufferInfo = new DescriptorBufferInfo {
-				Buffer = uniformBuffer,
+				Buffer = uniformBufferV,
 				Offset = 0,
-				Range = uniformBufferSize,
+				Range = uniformBufferSizeV,
 			};
 			var writeDescriptorSet = new WriteDescriptorSet {
 				DstSet = descriptorSets [0],
@@ -1768,19 +1594,41 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 		}
 
+		#region Clear Cache Variables
+
+		private Vector4 clearColor = new Vector4(0, 0, 0, 0);
+		private float clearDepth = 1.0f;
+		private int clearStencil = 0;
+
+		private bool shouldClearColor = false;
+		private bool shouldClearDepth = false;
+		private bool shouldClearStencil = false;
+
+		#endregion
+
 		public void Clear(ClearOptions options, Vector4 color, float depth, int stencil)
 		{
-			var clearColorValue = new ClearColorValue {Float32 = new float[4] {color.X, color.Y, color.W, color.Z}};
-			// todo: what depth? what stencil? what options?
-			/*
-			_commandBuffer.CmdClearColorImage
-			(currentImage,
-				ImageLayout.General,
-				clearColorValue,
-				new ImageSubresourceRange {AspectMask = ImageAspectFlags.Color, LevelCount = 1, LayerCount = 1}
-			);
-			*/
-			_clearColorValue = clearColorValue;
+			bool clearTarget = (options & ClearOptions.Target) == ClearOptions.Target;
+			bool clearDepth = (options & ClearOptions.DepthBuffer) == ClearOptions.DepthBuffer;
+			bool clearStencil = (options & ClearOptions.Stencil) == ClearOptions.Stencil;
+
+			if (clearTarget)
+			{
+				clearColor = color;
+				shouldClearColor = true;
+			}
+			if (clearDepth)
+			{
+				this.clearDepth = depth;
+				shouldClearDepth = true;
+			}
+			if (clearStencil)
+			{
+				this.clearStencil = stencil;
+				shouldClearStencil = true;
+			}
+
+			needNewRenderPass |= clearTarget | clearDepth | clearStencil;
 		}
 
 		public void SetRenderTargets(RenderTargetBinding[] renderTargets, IGLRenderbuffer renderbuffer,
@@ -2512,9 +2360,360 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
+		private IntPtr renderCommandEncoder; // todo: replace this with a boolean 'renderPassActive'
+
+		private void EndPass()
+		{
+			if (renderCommandEncoder != IntPtr.Zero)
+			{
+				_commandBuffer.CmdEndRenderPass();
+				renderCommandEncoder = IntPtr.Zero;
+			}
+
+			/*
+			if (renderCommandEncoder != IntPtr.Zero)
+			{
+				mtlEndEncoding(renderCommandEncoder);
+				renderCommandEncoder = IntPtr.Zero;
+			}
+			*/
+		}
+
+		private bool needNewRenderPass;
+
+		private void UpdateRenderPass()
+		{
+			if (!needNewRenderPass) return;
+
+			/* Normally the frame begins in BeginDraw(),
+			 * but some games perform drawing outside
+			 * of the Draw method (e.g. initializing
+			 * render targets in LoadContent). This call
+			 * ensures that we catch any unexpected draws.
+			 * -caleb
+			 */
+			BeginFrame();
+
+			// Wrap up rendering with the old encoder
+			EndPass();
+
+			// Make a new render pass
+			_commandBuffer.CmdBeginRenderPass(new RenderPassBeginInfo
+			{
+				RenderPass = renderPass,
+				Framebuffer = _framebuffers[imageIndex],
+				RenderArea = new Rect2D
+				{
+					Extent = new Extent2D
+					{
+						Width = width,
+						Height = height,
+					},
+					Offset = new Offset2D(),
+				},
+				ClearValues = getCurrentClearValues(),
+			}, SubpassContents.Inline);
+			renderCommandEncoder = (IntPtr)1; // not null
+
+			// Reset the flags
+			needNewRenderPass = false;
+			shouldClearColor = false;
+			shouldClearDepth = false;
+			shouldClearStencil = false;
+		}
+
 		private VulkanBuffer userVertexBuffer = null;
 		private VulkanBuffer userIndexBuffer = null;
 		private int userVertexStride = 0;
+
+		#region Private Buffer Binding Cache
+
+		private const int MAX_BOUND_VERTEX_BUFFERS = 16;
+
+		private IntPtr ldVertUniformBuffer = IntPtr.Zero;
+		private IntPtr ldFragUniformBuffer = IntPtr.Zero;
+		private int ldVertUniformOffset = 0;
+		private int ldFragUniformOffset = 0;
+
+		private IntPtr[] ldVertexBuffers;
+		private int[] ldVertexBufferOffsets;
+
+		#endregion
+
+		#region Resource Binding Method
+
+		private void BindResources()
+		{
+			getMaybeCachedShaders(out var fshader, out var fname, out var vshader, out var vname);
+
+			var setLayout = device.CreateDescriptorSetLayout(new DescriptorSetLayoutCreateInfo
+			{
+				Bindings = new[]
+				{
+					new DescriptorSetLayoutBinding
+					{
+						DescriptorType = DescriptorType.StorageBuffer,
+						StageFlags = ShaderStageFlags.Vertex,
+						Binding = 1,
+						DescriptorCount = 1,
+					},
+					new DescriptorSetLayoutBinding
+					{
+						//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+						//DescriptorType = DescriptorType.UniformBufferDynamic,
+						//DescriptorType = DescriptorType.Blo // VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT
+						DescriptorType = DescriptorType.UniformBuffer,
+						StageFlags = ShaderStageFlags.Vertex,
+						Binding = 0,
+						DescriptorCount = 1,
+					},
+				},
+				//Flags = DescriptorSetLayoutCreateFlags.PushDescriptorKhr
+			});
+			_setLayout = setLayout;
+
+			var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo
+			{
+				SetLayouts = new[] {setLayout},
+				//PushConstantRanges = new PushConstantRange[] { },
+			});
+
+			PipelineShaderStageCreateInfo vertexCreateInfo = new PipelineShaderStageCreateInfo
+				{
+					Stage = ShaderStageFlags.Vertex,
+					Module = vshader,
+					Name = vname,
+				},
+				fragmentCreateInfo = new PipelineShaderStageCreateInfo
+				{
+					Stage = ShaderStageFlags.Fragment,
+					Module = fshader,
+					Name = fname,
+				};
+
+			var stages = new[] {vertexCreateInfo, fragmentCreateInfo};
+
+			var createInfo = new GraphicsPipelineCreateInfo
+			{
+				Stages = stages,
+
+				VertexInputState = new PipelineVertexInputStateCreateInfo
+				{
+					VertexAttributeDescriptions = new VertexInputAttributeDescription[]
+					{
+						new VertexInputAttributeDescription
+						{
+							// todo: all of this is hardcoded. why?
+							Binding = 0,
+							Format = Format.R32G32B32Sfloat, // IMPORTANT NOTE: this is set to 3 floats, not 4.
+							Location = 0,
+							Offset = 0,
+						}
+					},
+					VertexBindingDescriptions = new VertexInputBindingDescription[]
+					{
+						new VertexInputBindingDescription
+						{
+							// todo: all of this is hardcoded. why?
+							Binding = 0,
+							Stride = 5 * sizeof(float), // 5 floats
+							InputRate = VertexInputRate.Vertex,
+						}
+					},
+				},
+
+				InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
+				{
+					Topology = PrimitiveTopology.TriangleList // todo, case off of primitive type
+				},
+				ViewportState = new PipelineViewportStateCreateInfo
+				{
+					ViewportCount = 1,
+					ScissorCount = 1, // todo: unset causes wrongness, test this.
+				},
+				RasterizationState = new PipelineRasterizationStateCreateInfo
+				{
+					/*
+					 * PolygonMode = PolygonMode.Fill,
+			CullMode = (uint)CullModeFlags.None,
+			FrontFace = FrontFace.Clockwise,
+			LineWidth = 1.0f
+					 */
+					LineWidth = 1.0f,
+				},
+				MultisampleState = new PipelineMultisampleStateCreateInfo
+				{
+					RasterizationSamples = SampleCountFlags.Count1,
+				},
+				DepthStencilState = new PipelineDepthStencilStateCreateInfo { },
+				ColorBlendState = new PipelineColorBlendStateCreateInfo
+				{
+					Attachments = new[]
+					{
+						new PipelineColorBlendAttachmentState
+						{
+							ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B |
+							                 ColorComponentFlags.A,
+						}
+					}
+				},
+				DynamicState = new PipelineDynamicStateCreateInfo
+				{
+					DynamicStates = new[] {DynamicState.Viewport, DynamicState.Scissor}
+				},
+				Layout = layout,
+				RenderPass = renderPass,
+			};
+			var pipelines = device.CreateGraphicsPipelines(null, new[] {createInfo});
+
+			var trianglePipeline = pipelines[0];
+
+			_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, trianglePipeline);
+
+			Buffer buffer;
+			DeviceSize bufferSizeii;
+			unsafe
+			{
+				var kkola = sizeof(MojoShader.MOJOSHADER_vkShaderState);
+
+				var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.fragmentUniformBuffer;
+				var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.vertexUniformBuffer;
+
+				if (vertexUniformBuffer != null)
+				{
+					var size = vertexUniformBuffer->size;
+					var bufferPtr = vertexUniformBuffer->buffer;
+					buffer = MyClass.makeT<Buffer>(bufferPtr);
+					bufferSizeii = size;
+				}
+				else
+				{
+					throw new Exception("Unset vertex buffer");
+				}
+
+				//var fragmentBufferSize = fragmentUniformBuffer->size;
+				//var vertexBufferSize = vertexUniformBuffer->size;
+			}
+
+			uniformBufferV = buffer;
+			uniformBufferSizeV = bufferSizeii;
+
+			descriptorSets = CreateDescriptorSets();
+			UpdateDescriptorSets();
+			_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[0], null);
+
+			// Bind textures and their sampler states
+			for (int i = 0; i < Textures.Length; i += 1)
+			{
+				if (textureNeedsUpdate[i])
+				{
+					/*
+					mtlSetFragmentTexture(
+						renderCommandEncoder,
+						Textures[i].Handle,
+						i
+					);
+					*/
+					textureNeedsUpdate[i] = false;
+				}
+				if (samplerNeedsUpdate[i])
+				{
+					/*
+					mtlSetFragmentSamplerState(
+						renderCommandEncoder,
+						Samplers[i],
+						i
+					);
+					*/
+					samplerNeedsUpdate[i] = false;
+				}
+			}
+
+			// Bind the uniform buffers
+			const int UNIFORM_REG = 16; // In MojoShader output it's always 16
+
+			IntPtr vUniform = shaderState.vertexUniformBuffer;
+			int vOff = shaderState.vertexUniformOffset;
+			if (vUniform != ldVertUniformBuffer)
+			{
+				/*
+				mtlSetVertexBuffer(
+					renderCommandEncoder,
+					vUniform,
+					vOff,
+					UNIFORM_REG
+				);
+				ldVertUniformBuffer = vUniform;
+				ldVertUniformOffset = vOff;
+				*/
+			}
+			else if (vOff != ldVertUniformOffset)
+			{
+				/*
+				mtlSetVertexBufferOffset(
+					renderCommandEncoder,
+					vOff,
+					UNIFORM_REG
+				);
+				*/
+				ldVertUniformOffset = vOff;
+			}
+
+			IntPtr fUniform = shaderState.fragmentUniformBuffer;
+			int fOff = shaderState.fragmentUniformOffset;
+			if (fUniform != ldFragUniformBuffer)
+			{
+				/*
+				mtlSetFragmentBuffer(
+					renderCommandEncoder,
+					fUniform,
+					fOff,
+					UNIFORM_REG
+				);
+				*/
+				ldFragUniformBuffer = fUniform;
+				ldFragUniformOffset = fOff;
+			}
+			else if (fOff != ldFragUniformOffset)
+			{
+				/*
+				mtlSetFragmentBufferOffset(
+					renderCommandEncoder,
+					fOff,
+					UNIFORM_REG
+				);
+				*/
+				ldFragUniformOffset = fOff;
+			}
+
+			// Bind the depth-stencil state
+			/*
+			IntPtr depthStencilState = FetchDepthStencilState();
+			if (depthStencilState != ldDepthStencilState)
+			{
+				mtlSetDepthStencilState(
+					renderCommandEncoder,
+					depthStencilState
+				);
+				ldDepthStencilState = depthStencilState;
+			}
+			*/
+
+			// Finally, bind the pipeline state
+			/*
+			IntPtr pipelineState = FetchRenderPipeline();
+			if (pipelineState != ldPipelineState)
+			{
+				mtlSetRenderPipelineState(
+					renderCommandEncoder,
+					pipelineState
+				);
+				ldPipelineState = pipelineState;
+			}
+			*/
+		}
+
+		#endregion
 
 		public void ApplyVertexAttributes(VertexDeclaration vertexDeclaration, IntPtr ptr, int vertexOffset)
 		{
@@ -2526,8 +2725,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			userVertexStride = vertexDeclaration.VertexStride;
 
 			// Prepare for rendering
-			//UpdateRenderPass();
-			//BindResources();
+			UpdateRenderPass();
+			BindResources();
 
 			// The rest happens in DrawUser[Indexed]Primitives.
 		}
