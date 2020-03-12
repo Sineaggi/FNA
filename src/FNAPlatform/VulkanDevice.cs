@@ -1033,16 +1033,17 @@ namespace Microsoft.Xna.Framework.Graphics
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
 				PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, null, null, renderBeginBarrier);
 
+			// flipping the viewport coords is core in vulkan 1.1
 			_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
 			{
-				Height = height,
+				Height = -height,
 				Width = width,
 				X = 0.0f,
-				Y = 1.0f,
+				Y = height,
 				MaxDepth = 1,
 				MinDepth = 0,
-
 			});
+
 			_commandBuffer.CmdSetScissor(0, new Rect2D
 			{
 				Offset = new Offset2D(),
