@@ -43,6 +43,19 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public IntPtr BufferSize { get; }
 
+			private bool boundThisFrame;
+
+			public int InternalOffset
+			{
+				get;
+				private set;
+			}
+
+			public void Bound()
+			{
+				boundThisFrame = true;
+			}
+
 			public VulkanBuffer(
 				Buffer buffer,
 				DeviceMemory bufferMemory,
@@ -2355,10 +2368,61 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void ApplyVertexAttributes(VertexBufferBinding[] bindings, int numBindings, bool bindingsUpdated, int baseVertex)
 		{
-			Console.WriteLine("ApplyVertexAttributes 1");
-			//BindPipeline();
-			// 8 todo
-			throw new NotImplementedException();
+			// Translate the bindings array into a descriptor
+			//currentVertexDescriptor = FetchVertexDescriptor(
+			//	bindings,
+			//	numBindings
+			//);
+
+			// Prepare for rendering
+			UpdateRenderPass();
+			BindResources();
+
+			// Bind the vertex buffers
+			for (int i = 0; i < bindings.Length; i += 1)
+			{
+				VertexBuffer vertexBuffer = bindings[i].VertexBuffer;
+				if (vertexBuffer != null)
+				{
+					int stride = bindings[i].VertexBuffer.VertexDeclaration.VertexStride;
+					int offset = (
+						((bindings[i].VertexOffset + baseVertex) * stride) +
+						(vertexBuffer.buffer as VulkanBuffer).InternalOffset
+					);
+
+					ulong handle = ((INonDispatchableHandleMarshalling)(vertexBuffer.buffer as VulkanBuffer).Buffer).Handle;
+					(vertexBuffer.buffer as VulkanBuffer).Bound();
+					if (ldVertexBuffers[i] != handle)
+					{
+						_commandBuffer.CmdBindVertexBuffer(
+							0,
+							(vertexBuffer.buffer as VulkanBuffer).Buffer,
+							offset
+							);
+						/*
+						mtlSetVertexBuffer(
+							renderCommandEncoder,
+							handle,
+							offset,
+							i
+						);
+						*/
+						ldVertexBuffers[i] = handle;
+						ldVertexBufferOffsets[i] = offset;
+					}
+					else if (ldVertexBufferOffsets[i] != offset)
+					{
+						throw new NotImplementedException();
+						//_commandBuffer.CmdBindVertexBuffer();
+						//mtlSetVertexBufferOffset(
+						//	renderCommandEncoder,
+						//	offset,
+						//	i
+						//);
+						ldVertexBufferOffsets[i] = offset;
+					}
+				}
+			}
 		}
 
 		private IntPtr renderCommandEncoder; // todo: replace this with a boolean 'renderPassActive'
@@ -2436,7 +2500,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		private int ldVertUniformOffset = 0;
 		private int ldFragUniformOffset = 0;
 
-		private IntPtr[] ldVertexBuffers;
+		private ulong[] ldVertexBuffers;
 		private int[] ldVertexBufferOffsets;
 
 		#endregion
