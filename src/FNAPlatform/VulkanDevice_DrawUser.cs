@@ -11,31 +11,24 @@ namespace Microsoft.Xna.Framework.Graphics
         public void DrawUserPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
             int primitiveCount)
         {
+            var vertexCount = (uint)XNAToVK.PrimitiveVerts(primitiveType, primitiveCount);
 
-            uint firstInstance = 0;
-            uint firstVertex = 0;
-            uint vertexCount;
-            if (primitiveType == PrimitiveType.TriangleList)
-            {
-                vertexCount = (uint)(3 * primitiveCount);
-            }
-            else
-            {
-                throw new Exception("Oh fuck");
-            }
-            uint instanceCount = 1;
-
-            var data = vertexData;
-            var dataLength = vertexCount * /* size of data */ 5 * sizeof(float);
-            DeviceSize bufferSize = dataLength;// sizeof(uint) * primitiveCount * 3;
-            createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
-            var dst = device.MapMemory(stagingBufferMemory, 0, bufferSize, 0);
-            SDL.SDL_memcpy(dst, data, (IntPtr)dataLength);
+            var vertexBufferLength = vertexCount * (uint) userVertexStride;
+            DeviceSize vertexBufferSize = vertexBufferLength;
+            createBuffer(vertexBufferSize, BufferUsageFlags.TransferSrc,
+                MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer,
+                out var stagingBufferMemory);
+            var dst = device.MapMemory(stagingBufferMemory, 0, vertexBufferSize, 0);
+            SDL.SDL_memcpy(dst, vertexData, (IntPtr) vertexBufferLength);
             device.UnmapMemory(stagingBufferMemory);
 
-            createBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer | BufferUsageFlags.UniformBuffer, MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
+            createBuffer(vertexBufferSize,
+                BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer | BufferUsageFlags.UniformBuffer,
+                MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
 
-            copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+            copyBuffer(stagingBuffer, vertexBuffer, vertexBufferSize);
+            device.FreeMemory(stagingBufferMemory);
+            device.DestroyBuffer(stagingBuffer);
 
 
             // vertexBuffer; // todo: not correct. uniform buffer = mvp matrix. that's how the data gets set.
@@ -48,9 +41,7 @@ namespace Microsoft.Xna.Framework.Graphics
             //buffers [i].CmdBindVertexBuffer (0, vertexBuffer, 0);
             //_commandBuffer.CmdBindIndexBuffer(userIndexBuffer, 0, IndexType.Uint16);
             _commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
-            _commandBuffer.CmdDraw(vertexCount, instanceCount, firstVertex, firstInstance);
-
-            Console.WriteLine("DrawUserPrimitives");
+            _commandBuffer.CmdDraw(vertexCount, 1, 0, 0);
         }
 
         public void DrawUserIndexedPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
