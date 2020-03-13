@@ -2493,10 +2493,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			DeviceSize bufferSizeii;
 			unsafe
 			{
-				var kkola = sizeof(MojoShader.MOJOSHADER_vkShaderState);
-
-				var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.fragmentUniformBuffer;
-				var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer *)shaderState.vertexUniformBuffer;
+				var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.vertexUniformBuffer;
 
 				if (vertexUniformBuffer != null)
 				{
@@ -2507,11 +2504,21 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 				else
 				{
-					throw new Exception("Unset vertex buffer");
+					// todo: handle this case
+					throw new Exception("Unset vertex uniform buffer");
 				}
 
-				//var fragmentBufferSize = fragmentUniformBuffer->size;
-				//var vertexBufferSize = vertexUniformBuffer->size;
+				var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.fragmentUniformBuffer;
+				// todo: handle when fragment shader has data
+				if (fragmentUniformBuffer != null)
+				{
+					// todo: handle this case
+					throw new Exception("Unset fragment uniform buffer");
+				}
+				else
+				{
+					// todo: handle this case
+				}
 			}
 
 			uniformBufferV = buffer;
