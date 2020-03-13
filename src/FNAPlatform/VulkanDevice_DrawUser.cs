@@ -8,6 +8,51 @@ namespace Microsoft.Xna.Framework.Graphics
 {
     internal partial class VulkanDevice : IGLDevice
     {
+        public void DrawUserPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
+            int primitiveCount)
+        {
+
+            uint firstInstance = 0;
+            uint firstVertex = 0;
+            uint vertexCount;
+            if (primitiveType == PrimitiveType.TriangleList)
+            {
+                vertexCount = (uint)(3 * primitiveCount);
+            }
+            else
+            {
+                throw new Exception("Oh fuck");
+            }
+            uint instanceCount = 1;
+
+            var data = vertexData;
+            var dataLength = vertexCount * /* size of data */ 5 * sizeof(float);
+            DeviceSize bufferSize = dataLength;// sizeof(uint) * primitiveCount * 3;
+            createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
+            var dst = device.MapMemory(stagingBufferMemory, 0, bufferSize, 0);
+            SDL.SDL_memcpy(dst, data, (IntPtr)dataLength);
+            device.UnmapMemory(stagingBufferMemory);
+
+            createBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer | BufferUsageFlags.UniformBuffer, MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
+
+            copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+
+            // vertexBuffer; // todo: not correct. uniform buffer = mvp matrix. that's how the data gets set.
+
+            //uniformBuffer = vertexBuffer; // glm? mvp? how to set data?
+
+
+
+            //_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[1], null);
+            //buffers [i].CmdBindVertexBuffer (0, vertexBuffer, 0);
+            //_commandBuffer.CmdBindIndexBuffer(userIndexBuffer, 0, IndexType.Uint16);
+            _commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
+            _commandBuffer.CmdDraw(vertexCount, instanceCount, firstVertex, firstInstance);
+
+            Console.WriteLine("DrawUserPrimitives");
+        }
+
         public void DrawUserIndexedPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
             int numVertices,
             IntPtr indexData, int indexOffset, IndexElementSize indexElementSize, int primitiveCount)
@@ -26,6 +71,8 @@ namespace Microsoft.Xna.Framework.Graphics
                 MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
 
             copyBuffer(stagingBuffer, vertexBuffer, vertexBufferSize);
+            device.FreeMemory(stagingBufferMemory);
+            device.DestroyBuffer(stagingBuffer);
 
             var indexCount = (uint)XNAToVK.PrimitiveVerts(primitiveType, primitiveCount);
 
@@ -43,12 +90,13 @@ namespace Microsoft.Xna.Framework.Graphics
                 MemoryPropertyFlags.DeviceLocal, out var indexBuffer, out var indexMemory);
 
             copyBuffer(stagingBuffer2, indexBuffer, indexBufferSize);
+            device.FreeMemory(stagingBufferMemory2);
+            device.DestroyBuffer(stagingBuffer2);
 
             Buffer buffer;
             DeviceSize bufferSizeii;
             unsafe
             {
-                var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.fragmentUniformBuffer;
                 var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.vertexUniformBuffer;
 
                 if (vertexUniformBuffer != null)
@@ -60,19 +108,28 @@ namespace Microsoft.Xna.Framework.Graphics
                 }
                 else
                 {
-                    throw new Exception("Unset vertex buffer");
+                    // todo: handle this case
+                    throw new Exception("Unset vertex uniform buffer");
                 }
 
-                //var fragmentBufferSize = fragmentUniformBuffer->size;
-                //var vertexBufferSize = vertexUniformBuffer->size;
+                var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.fragmentUniformBuffer;
+                // todo: handle when fragment shader has data
+                if (fragmentUniformBuffer != null)
+                {
+                    // todo: handle this case
+                    throw new Exception("Unset fragment uniform buffer");
+                }
+                else
+                {
+                    // todo: handle this case
+                }
             }
 
             uniformBufferV = buffer;
             uniformBufferSizeV = bufferSizeii;
 
             UpdateDescriptorSets();
-            //_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[1], null);
-            //buffers [i].CmdBindVertexBuffer (0, vertexBuffer, 0);
+
             _commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
             _commandBuffer.CmdBindIndexBuffer(indexBuffer, 0, XNAToVK.IndexType[(int) indexElementSize]);
             _commandBuffer.CmdDrawIndexed(indexCount, 1, 0, 0, 0);

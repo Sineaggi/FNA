@@ -1207,54 +1207,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 		}
 
-		public void DrawUserPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
-			int primitiveCount)
-		{
-
-			uint firstInstance = 0;
-			uint firstVertex = 0;
-			uint vertexCount;
-			if (primitiveType == PrimitiveType.TriangleList)
-			{
-				vertexCount = (uint)(3 * primitiveCount);
-			}
-			else
-			{
-				throw new Exception("Oh fuck");
-			}
-			uint instanceCount = 1;
-
-			//float[] probablyFloats = new float[vertexCount * 5];
-			//Marshal.Copy(vertexData, probablyFloats, 0,(int)(vertexCount * 5));
-
-			var data = vertexData;
-			var dataLength = vertexCount * /* size of data */ 5 * sizeof(float);
-			DeviceSize bufferSize = dataLength;// sizeof(uint) * primitiveCount * 3;
-			createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
-			var dst = device.MapMemory(stagingBufferMemory, 0, bufferSize, 0);
-			SDL.SDL_memcpy(dst, data, (IntPtr)dataLength);
-			device.UnmapMemory(stagingBufferMemory);
-
-			createBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer | BufferUsageFlags.UniformBuffer, MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
-
-			copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-
-			// vertexBuffer; // todo: not correct. uniform buffer = mvp matrix. that's how the data gets set.
-
-			//uniformBuffer = vertexBuffer; // glm? mvp? how to set data?
-
-
-
-			//_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[1], null);
-			//buffers [i].CmdBindVertexBuffer (0, vertexBuffer, 0);
-			//_commandBuffer.CmdBindIndexBuffer(userIndexBuffer, 0, IndexType.Uint16);
-			_commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
-			_commandBuffer.CmdDraw(vertexCount, instanceCount, firstVertex, firstInstance);
-
-			Console.WriteLine("DrawUserPrimitives");
-		}
-
 		private DescriptorSet[] descriptorSets;
 
 		private DescriptorSetLayout _setLayout;
