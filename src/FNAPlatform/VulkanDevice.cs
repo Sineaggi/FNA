@@ -1210,7 +1210,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		private DescriptorSet[] descriptorSets;
 
 		private DescriptorSetLayout _setLayout;
-		private DescriptorSetLayout _setLayout2;
+
 		DescriptorSet [] CreateDescriptorSets ()
 		{
 			var typeCount = new DescriptorPoolSize {
@@ -1221,6 +1221,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				PoolSizes = new DescriptorPoolSize [] { typeCount },
 				MaxSets = 1
 			};
+			// todo: delete the fuck out of this
 			var descriptorPool = device.CreateDescriptorPool (descriptorPoolCreateInfo);
 
 			var descriptorSetLayout = _setLayout;
@@ -1396,11 +1397,6 @@ namespace Microsoft.Xna.Framework.Graphics
 		private IntPtr[] Samplers;
 		private bool[] textureNeedsUpdate;
 		private bool[] samplerNeedsUpdate;
-
-		private IntPtr FetchSamplerState(SamplerState samplerState, bool hasMipmaps)
-		{
-			return IntPtr.Zero; // todo;
-		}
 
 		public void VerifySampler(int index, Texture texture, SamplerState sampler)
 		{
@@ -2220,13 +2216,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
+		private IntPtr currentVertexDescriptor;		// MTLVertexDescriptor*
+
 		public void ApplyVertexAttributes(VertexBufferBinding[] bindings, int numBindings, bool bindingsUpdated, int baseVertex)
 		{
 			// Translate the bindings array into a descriptor
-			//currentVertexDescriptor = FetchVertexDescriptor(
-			//	bindings,
-			//	numBindings
-			//);
+			currentVertexDescriptor = FetchVertexDescriptor(
+				bindings,
+				numBindings
+			);
 
 			// Prepare for rendering
 			UpdateRenderPass();
@@ -2345,6 +2343,9 @@ namespace Microsoft.Xna.Framework.Graphics
 		private VulkanBuffer userIndexBuffer = null;
 		private int userVertexStride = 0;
 
+		// Some vertex declarations may have overlapping attributes :/
+		private bool[,] attrUse = new bool[(int) MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TOTAL, 16];
+
 		#region Private Buffer Binding Cache
 
 		private const int MAX_BOUND_VERTEX_BUFFERS = 16;
@@ -2418,6 +2419,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				VertexInputState = new PipelineVertexInputStateCreateInfo
 				{
+					/*
 					VertexAttributeDescriptions = new VertexInputAttributeDescription[]
 					{
 						new VertexInputAttributeDescription
@@ -2428,7 +2430,8 @@ namespace Microsoft.Xna.Framework.Graphics
 							Location = 0,
 							Offset = 0,
 						}
-					},
+					},*/
+					VertexAttributeDescriptions = _descriptions, // todo: how to always make sure this is valid?
 					VertexBindingDescriptions = new VertexInputBindingDescription[]
 					{
 						new VertexInputBindingDescription
@@ -2644,10 +2647,10 @@ namespace Microsoft.Xna.Framework.Graphics
 		public void ApplyVertexAttributes(VertexDeclaration vertexDeclaration, IntPtr ptr, int vertexOffset)
 		{
 			// Translate the declaration into a descriptor
-			//currentVertexDescriptor = FetchVertexDescriptor(
-			//	vertexDeclaration,
-			//	vertexOffset
-			//);
+			currentVertexDescriptor = FetchVertexDescriptor(
+				vertexDeclaration,
+				vertexOffset
+			);
 			userVertexStride = vertexDeclaration.VertexStride;
 
 			// Prepare for rendering
