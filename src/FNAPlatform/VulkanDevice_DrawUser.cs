@@ -8,18 +8,26 @@ namespace Microsoft.Xna.Framework.Graphics
 {
     internal partial class VulkanDevice : IGLDevice
     {
-        public void DrawUserPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
-            int primitiveCount)
-        {
-            var vertexCount = (uint) XNAToVK.PrimitiveVerts(primitiveType, primitiveCount);
+        // todo: use metal code to figure how to copy, store, delete, and buffer data
+        private void BindUserVertexBuffer(
+            IntPtr vertexData,
+            int vertexCount,
+            int vertexOffset
+        ) {
+            if (vertexOffset != 0)
+            {
+                throw new Exception("Failed to implement this properly. Check metal device.");
+            }
 
-            var vertexBufferLength = vertexCount * (uint) userVertexStride;
-            DeviceSize vertexBufferSize = vertexBufferLength;
+            // Update the buffer contents
+            int len = vertexCount * userVertexStride;
+
+            DeviceSize vertexBufferSize = len;
             createBuffer(vertexBufferSize, BufferUsageFlags.TransferSrc,
                 MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer,
                 out var stagingBufferMemory);
             var dst = device.MapMemory(stagingBufferMemory, 0, vertexBufferSize, 0);
-            SDL.SDL_memcpy(dst, vertexData, (IntPtr) vertexBufferLength);
+            SDL.SDL_memcpy(dst, vertexData, (IntPtr) len);
             device.UnmapMemory(stagingBufferMemory);
 
             createBuffer(vertexBufferSize,
@@ -30,31 +38,40 @@ namespace Microsoft.Xna.Framework.Graphics
             device.FreeMemory(stagingBufferMemory);
             device.DestroyBuffer(stagingBuffer);
 
+            // Bind the buffer
             _commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
-            _commandBuffer.CmdDraw(vertexCount, 1, 0, 0);
+        }
+
+        public void DrawUserPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
+            int primitiveCount)
+        {
+            // Bind the vertex buffer
+            int numVerts = XNAToVK.PrimitiveVerts(
+                primitiveType,
+                primitiveCount
+            );
+            BindUserVertexBuffer(
+                vertexData,
+                numVerts,
+                vertexOffset
+            );
+
+            // Draw!
+            _commandBuffer.CmdDraw((uint)numVerts, 1, 0, 0);
         }
 
         public void DrawUserIndexedPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
             int numVertices,
             IntPtr indexData, int indexOffset, IndexElementSize indexElementSize, int primitiveCount)
         {
-            var vertexBufferLength = (uint) numVertices * (uint) userVertexStride;
-            DeviceSize vertexBufferSize = vertexBufferLength;
-            createBuffer(vertexBufferSize, BufferUsageFlags.TransferSrc,
-                MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer,
-                out var stagingBufferMemory);
-            var dst = device.MapMemory(stagingBufferMemory, 0, vertexBufferSize, 0);
-            SDL.SDL_memcpy(dst, vertexData, (IntPtr) vertexBufferLength);
-            device.UnmapMemory(stagingBufferMemory);
+            // Bind the vertex buffer
+            BindUserVertexBuffer(
+                vertexData,
+                numVertices,
+                vertexOffset
+            );
 
-            createBuffer(vertexBufferSize,
-                BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer | BufferUsageFlags.UniformBuffer,
-                MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
-
-            copyBuffer(stagingBuffer, vertexBuffer, vertexBufferSize);
-            device.FreeMemory(stagingBufferMemory);
-            device.DestroyBuffer(stagingBuffer);
-
+            // Prepare the index buffer
             var indexCount = (uint) XNAToVK.PrimitiveVerts(primitiveType, primitiveCount);
 
             var indexBufferLength = indexCount * (uint) XNAToVK.IndexSize[(int) indexElementSize];
@@ -74,8 +91,9 @@ namespace Microsoft.Xna.Framework.Graphics
             device.FreeMemory(stagingBufferMemory2);
             device.DestroyBuffer(stagingBuffer2);
 
-            _commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
             _commandBuffer.CmdBindIndexBuffer(indexBuffer, 0, XNAToVK.IndexType[(int) indexElementSize]);
+
+            // Draw!
             _commandBuffer.CmdDrawIndexed(indexCount, 1, 0, 0, 0);
         }
     }

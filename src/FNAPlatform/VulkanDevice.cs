@@ -2437,8 +2437,8 @@ namespace Microsoft.Xna.Framework.Graphics
 						new VertexInputBindingDescription
 						{
 							// todo: all of this is hardcoded. why?
-							Binding = 0,
-							Stride = 5 * sizeof(float), // 5 floats
+							Binding = 0, // todo: assuming there's only ever 1 vertex input binding
+							Stride = (uint)userVertexStride,
 							InputRate = VertexInputRate.Vertex,
 						}
 					},

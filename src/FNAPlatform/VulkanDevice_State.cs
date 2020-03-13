@@ -576,6 +576,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			 * have to crash :/
 			 * -flibit
 			 */
+			var lisp = new List<VertexInputAttributeDescription>();
 			Array.Clear(attrUse, 0, attrUse.Length);
 			for (int i = 0; i < numBindings; i += 1)
 			{
@@ -615,8 +616,15 @@ namespace Microsoft.Xna.Framework.Graphics
 						continue;
 					}
 
-					var skola2 = XNAToVK.VertexAttribType[(int) element.VertexElementFormat];
-					int xx = 23;
+					var vertexInputAttributeDescription = new VertexInputAttributeDescription
+					{
+						// todo: all of this is hardcoded. why?
+						Binding = (uint)attribLoc,
+						Format = XNAToVK.VertexAttribType[(int) element.VertexElementFormat],
+						Location = 0, // todo: play around with this. may not be necessary to hard-code.
+						Offset = (uint)element.Offset, // todo: maybe correct
+					};
+					lisp.Add(vertexInputAttributeDescription);
 
 					// todo: impl this!!!
 					/*
@@ -663,6 +671,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 				*/
 			}
+			_descriptions = lisp.ToArray();
 
 			// todo: this
 			/*
