@@ -19,6 +19,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Messaging;
 using System.Security.AccessControl;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Media;
 using SDL2;
 using Vulkan;
@@ -1135,6 +1136,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			graphicsQueue.WaitIdle();
 
+			// Reset buffers
+			//for (int i = 0; i < Buffers.Count; i += 1)
+			//{
+			//	Buffers[i].Reset();
+			//}
+			MojoShader.MOJOSHADER_vkEndFrame();
 
 			// We're done here.
 			frameInProgress = false;
@@ -1234,14 +1241,15 @@ namespace Microsoft.Xna.Framework.Graphics
 		}
 
 		private Buffer uniformBufferV;
+		private uint uniformBufferOffsetV;
 		private DeviceSize uniformBufferSizeV;
 
 		void UpdateDescriptorSets ()
 		{
 			var uniformBufferInfo = new DescriptorBufferInfo {
 				Buffer = uniformBufferV,
-				Offset = 0,
-				Range = uniformBufferSizeV,
+				Offset = uniformBufferOffsetV,
+				Range = uniformBufferSizeV - uniformBufferOffsetV, // todo: how much data are we writing?
 			};
 			var writeDescriptorSet = new WriteDescriptorSet {
 				DstSet = descriptorSets [0],
@@ -2492,11 +2500,13 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, trianglePipeline);
 
+			/*
 			Buffer buffer;
 			DeviceSize bufferSizeii;
 			unsafe
 			{
 				var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.vertexUniformBuffer;
+				var offset = shaderState.vertexUniformOffset;
 
 				if (vertexUniformBuffer != null)
 				{
@@ -2526,10 +2536,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			uniformBufferV = buffer;
 			uniformBufferSizeV = bufferSizeii;
-
-			descriptorSets = CreateDescriptorSets();
-			UpdateDescriptorSets();
-			_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[0], null);
+			*/
 
 			// Bind textures and their sampler states
 			for (int i = 0; i < Textures.Length; i += 1)
@@ -2565,26 +2572,32 @@ namespace Microsoft.Xna.Framework.Graphics
 			int vOff = shaderState.vertexUniformOffset;
 			if (vUniform != ldVertUniformBuffer)
 			{
-				/*
-				mtlSetVertexBuffer(
-					renderCommandEncoder,
-					vUniform,
-					vOff,
-					UNIFORM_REG
-				);
+				unsafe
+				{
+					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
+					var size = vertexUniformBuffer->size;
+					var bufferPtr = vertexUniformBuffer->buffer;
+					uniformBufferV = MyClass.makeT<Buffer>(bufferPtr);
+					uniformBufferSizeV = size;
+					uniformBufferOffsetV = (uint)vOff;
+				}
+
 				ldVertUniformBuffer = vUniform;
 				ldVertUniformOffset = vOff;
-				*/
+
 			}
 			else if (vOff != ldVertUniformOffset)
 			{
-				/*
-				mtlSetVertexBufferOffset(
-					renderCommandEncoder,
-					vOff,
-					UNIFORM_REG
-				);
-				*/
+				unsafe
+				{
+					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
+					var size = vertexUniformBuffer->size;
+					var bufferPtr = vertexUniformBuffer->buffer;
+					uniformBufferV = MyClass.makeT<Buffer>(bufferPtr);
+					uniformBufferSizeV = size;
+					uniformBufferOffsetV = (uint)vOff;
+				}
+
 				ldVertUniformOffset = vOff;
 			}
 
@@ -2592,6 +2605,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			int fOff = shaderState.fragmentUniformOffset;
 			if (fUniform != ldFragUniformBuffer)
 			{
+				throw new NotImplementedException("Fragment Uniform Buffer support incomplete");
 				/*
 				mtlSetFragmentBuffer(
 					renderCommandEncoder,
@@ -2605,6 +2619,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			else if (fOff != ldFragUniformOffset)
 			{
+				throw new NotImplementedException("Fragment Uniform Buffer support incomplete");
 				/*
 				mtlSetFragmentBufferOffset(
 					renderCommandEncoder,
@@ -2614,6 +2629,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				*/
 				ldFragUniformOffset = fOff;
 			}
+
+			descriptorSets = CreateDescriptorSets();
+			UpdateDescriptorSets();
+			_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[0], null);
 
 			// Bind the depth-stencil state
 			/*
