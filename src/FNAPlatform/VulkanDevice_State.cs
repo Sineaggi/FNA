@@ -1,6 +1,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Net.Configuration;
 using Vulkan;
 
 namespace Microsoft.Xna.Framework.Graphics
@@ -576,7 +577,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			 * have to crash :/
 			 * -flibit
 			 */
-			var lisp = new List<VertexInputAttributeDescription>();
+			var attributeDescriptions = new List<VertexInputAttributeDescription>();
 			Array.Clear(attrUse, 0, attrUse.Length);
 			for (int i = 0; i < numBindings; i += 1)
 			{
@@ -624,7 +625,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						Location = 0, // todo: play around with this. may not be necessary to hard-code.
 						Offset = (uint)element.Offset, // todo: maybe correct
 					};
-					lisp.Add(vertexInputAttributeDescription);
+					attributeDescriptions.Add(vertexInputAttributeDescription);
 
 					// todo: impl this!!!
 					/*
@@ -671,14 +672,14 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 				*/
 			}
-			_descriptions = lisp.ToArray();
+			_descriptions = attributeDescriptions.ToArray();
 
 			// todo: this
-			/*
-			VertexDescriptorCache[hash] = descriptor;
-			*/
+		/*
+		VertexDescriptorCache[hash] = descriptor;
+		*/
 
-			return descriptor;
+		return descriptor;
 		}
 
 		private VertexInputAttributeDescription []_descriptions = new VertexInputAttributeDescription[] {};
@@ -713,7 +714,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			 * have to crash :/
 			 * -flibit
 			 */
-			List<VertexInputAttributeDescription> lisp = new List<VertexInputAttributeDescription>();
+			var attributeDescriptions = new List<VertexInputAttributeDescription>();
 			Array.Clear(attrUse, 0, attrUse.Length);
 			foreach (VertexElement element in vertexDeclaration.elements)
 			{
@@ -757,7 +758,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					Location = 0, // todo: play around with this. may not be necessary to hard-code.
 					Offset = (uint)element.Offset, // todo: maybe correct
 				};
-				lisp.Add(vertexInputAttributeDescription);
+				attributeDescriptions.Add(vertexInputAttributeDescription);
 
 				/*
 				IntPtr attrib = mtlGetVertexAttributeDescriptor(
@@ -778,7 +779,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				);
 				*/
 			}
-			_descriptions = lisp.ToArray();
+			_descriptions = attributeDescriptions.ToArray();
 
 			// Describe vertex buffer layout
 			/*

@@ -2378,6 +2378,9 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				Bindings = new[]
 				{
+					// who are these? why do they both exist?
+
+					/*
 					new DescriptorSetLayoutBinding
 					{
 						DescriptorType = DescriptorType.StorageBuffer,
@@ -2385,6 +2388,9 @@ namespace Microsoft.Xna.Framework.Graphics
 						Binding = 1,
 						DescriptorCount = 1,
 					},
+					*/
+
+						// todo: we can't hard-code this. this is so wrong.
 					new DescriptorSetLayoutBinding
 					{
 						//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
@@ -2424,7 +2430,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			var createInfo = new GraphicsPipelineCreateInfo
 			{
 				Stages = stages,
-
 				VertexInputState = new PipelineVertexInputStateCreateInfo
 				{
 					/*
@@ -2451,7 +2456,6 @@ namespace Microsoft.Xna.Framework.Graphics
 						}
 					},
 				},
-
 				InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
 				{
 					Topology = PrimitiveTopology.TriangleList // todo, case off of primitive type
