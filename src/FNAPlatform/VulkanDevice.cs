@@ -540,7 +540,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Public Constructor
 
-		private uint width, height;
+		private uint windowWidth, windowHeight; // todo: need's support for re-creating swapchain.
 
 		public VulkanDevice(
 			PresentationParameters presentationParameters,
@@ -699,11 +699,11 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				int w, h;
 				SDL.SDL_Vulkan_GetDrawableSize(presentationParameters.DeviceWindowHandle, out w, out h);
-				width = (uint) w;
-				height = (uint) h;
+				windowWidth = (uint) w;
+				windowHeight = (uint) h;
 			}
 
-			setupSwapchain(surfaceCaps, width, height);
+			setupSwapchain(surfaceCaps, windowWidth, windowHeight);
 
 			var kk = (ulong)((IMarshalling) device).Handle;
 			var kkola = Convert.ToString(53, 2);
@@ -740,17 +740,42 @@ namespace Microsoft.Xna.Framework.Graphics
 				var properties = physicalDevice.GetFormatProperties(format);
 			}
 
+			// Add fallbacks for missing texture formats on NVidia hardware
 			for (int i = 0; i < XNAToVK.TextureFormat.Length; i++)
 			{
 				// todo: check if format is supported. if not, fallback.
 				var format = XNAToVK.TextureFormat[i];
 				var properties = physicalDevice.GetFormatProperties(format);
-				if (properties.BufferFeatures.HasFlag(FormatFeatureFlags.SampledImage) &&
-				    properties.BufferFeatures.HasFlag(FormatFeatureFlags.SampledImage))
-				{
+				// These will have flags like 'can be used for VertexBuffer' usage.
+				// We only care about image feature flags.
 
+				// todo: need to figure out what flags actually need checking.
+				// todo: need to find out exactly what flags NVidia 1080ti supports.
+				if (!properties.BufferFeatures.HasFlag(FormatFeatureFlags.SampledImage) ||
+				    !properties.LinearTilingFeatures.HasFlag(FormatFeatureFlags.SampledImageFilterLinear) ||
+				    !properties.OptimalTilingFeatures.HasFlag(FormatFeatureFlags.SampledImageFilterLinear))
+				{
+					Console.WriteLine($"Unsupported tex {format}");
+					if (format == Format.R8G8B8Unorm)
+					{
+						XNAToVK.TextureFormat[i] = Format.R8G8B8A8Unorm;
+					}
+					// todo: else handle other formats too.
 				}
 			}
+
+			/*
+			// Add fallbacks for missing texture formats on macOS
+			if (isMac)
+			{
+				XNAToMTL.TextureFormat[(int) SurfaceFormat.Bgr565]
+					= MTLPixelFormat.BGRA8Unorm;
+				XNAToMTL.TextureFormat[(int) SurfaceFormat.Bgra5551]
+					= MTLPixelFormat.BGRA8Unorm;
+				XNAToMTL.TextureFormat[(int) SurfaceFormat.Bgra4444]
+					= MTLPixelFormat.BGRA8Unorm;
+			}
+			*/
 
 			/*
 			try
@@ -1050,10 +1075,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			// flipping the viewport coords is core in vulkan 1.1
 			_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
 			{
-				Height = -height,
-				Width = width,
+				Height = -windowHeight,
+				Width = windowWidth,
 				X = 0.0f,
-				Y = height,
+				Y = windowHeight,
 				MaxDepth = 1,
 				MinDepth = 0,
 			});
@@ -1063,8 +1088,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				Offset = new Offset2D(),
 				Extent = new Extent2D
 				{
-					Height = height,
-					Width = width,
+					Height = windowHeight,
+					Width = windowWidth,
 				}
 			});
 		}
@@ -1590,11 +1615,32 @@ namespace Microsoft.Xna.Framework.Graphics
 		public IGLTexture CreateTexture2D(SurfaceFormat format, int width, int height, int levelCount,
 			bool isRenderTarget)
 		{
-			// todo: use SurfaceFormat
-
 			Debug.Assert(width > 0);
 			Debug.Assert(height > 0);
-			return new VulkanTexture((uint)width, (uint)height, levelCount);
+
+			var textureImage = device.CreateImage(new ImageCreateInfo
+			{
+				ImageType = ImageType.Image2D,
+				Extent = new Extent3D {
+					Depth = 1,
+					Height = (uint)height,
+					Width = (uint)width,
+				},
+				MipLevels = 1,
+				ArrayLayers = 1,
+				Format = XNAToVK.TextureFormat[(uint)format],
+				Tiling = ImageTiling.Linear,
+				InitialLayout = ImageLayout.Undefined,
+				Usage = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled,
+				Samples = SampleCountFlags.Count1,
+				SharingMode = SharingMode.Exclusive,
+			});
+
+			var vulkanTexture = new VulkanTexture((uint) width, (uint) height, levelCount)
+			{
+				Image = textureImage
+			};
+			return vulkanTexture;
 		}
 
 		public IGLTexture CreateTexture3D(SurfaceFormat format, int width, int height, int depth, int levelCount)
@@ -1649,7 +1695,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			var vulkanTexture = texture as VulkanTexture;
 			var width = vulkanTexture.Width;
 			var height = vulkanTexture.Height;
-			DeviceSize imageSize = width * height * 4;
+			DeviceSize imageSize = width * height * 4; // todo: not hard-code
 
 			createBuffer(imageSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
 
@@ -1659,18 +1705,30 @@ namespace Microsoft.Xna.Framework.Graphics
 			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
 			device.UnmapMemory(stagingBufferMemory);
 
-			createImage(width, height, Format.R8G8B8A8Srgb, ImageTiling.Optimal, ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled, MemoryPropertyFlags.DeviceLocal, out var textureImage, out var textureImageMemory);
+			createImage(MemoryPropertyFlags.DeviceLocal, vulkanTexture.Image, out var textureImageMemory);
 
-			transitionImageLayout(textureImage, Format.R8G8B8A8Srgb, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
-			copyBufferToImage(stagingBuffer, textureImage, width, height);
-			transitionImageLayout(textureImage, Format.R8G8B8A8Srgb, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+			var fformat = XNAToVK.TextureFormat[(int) format];
+
+			transitionImageLayout(vulkanTexture.Image, fformat, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
+			copyBufferToImage(stagingBuffer, vulkanTexture.Image, width, height);
+			transitionImageLayout(vulkanTexture.Image, fformat, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
 
 			device.DestroyBuffer(stagingBuffer);
 			device.FreeMemory(stagingBufferMemory);
 
-			vulkanTexture.Image = textureImage;
+			//vulkanTexture.Image = textureImage;
 			vulkanTexture.ImageMemory = textureImageMemory;
 		}
+		void createImage(MemoryPropertyFlags properties, Image image, out DeviceMemory imageMemory) {
+			var memRequirements = device.GetImageMemoryRequirements(image);
+			imageMemory = device.AllocateMemory(new MemoryAllocateInfo
+			{
+				AllocationSize = memRequirements.Size,
+				MemoryTypeIndex = findMemoryType(memRequirements.MemoryTypeBits, properties),
+			});
+			device.BindImageMemory(image, imageMemory, 0);
+		}
+
 		void createImage(uint width, uint height, Format format, ImageTiling tiling, ImageUsageFlags usage, MemoryPropertyFlags properties, out Image image, out DeviceMemory imageMemory) {
 
 			image = device.CreateImage(new ImageCreateInfo
@@ -2331,8 +2389,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					Extent = new Extent2D
 					{
-						Width = width,
-						Height = height,
+						Width = windowWidth,
+						Height = windowHeight,
 					},
 					Offset = new Offset2D(),
 				},
