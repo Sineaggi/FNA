@@ -1615,9 +1615,6 @@ namespace Microsoft.Xna.Framework.Graphics
 		public IGLTexture CreateTexture2D(SurfaceFormat format, int width, int height, int levelCount,
 			bool isRenderTarget)
 		{
-			Debug.Assert(width > 0);
-			Debug.Assert(height > 0);
-
 			var textureImage = device.CreateImage(new ImageCreateInfo
 			{
 				ImageType = ImageType.Image2D,
@@ -1626,7 +1623,33 @@ namespace Microsoft.Xna.Framework.Graphics
 					Height = (uint)height,
 					Width = (uint)width,
 				},
-				MipLevels = 1,
+				MipLevels = (uint)levelCount,
+				ArrayLayers = 1,
+				Format = XNAToVK.TextureFormat[(uint)format],
+				Tiling = ImageTiling.Linear,
+				InitialLayout = ImageLayout.Undefined,
+				Usage = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled, // todo: use isRenderTarget here?
+				Samples = SampleCountFlags.Count1,
+				SharingMode = SharingMode.Exclusive,
+			});
+
+			return new VulkanTexture((uint) width, (uint) height, levelCount)
+			{
+				Image = textureImage
+			};
+		}
+
+		public IGLTexture CreateTexture3D(SurfaceFormat format, int width, int height, int depth, int levelCount)
+		{
+			var textureImage = device.CreateImage(new ImageCreateInfo
+			{
+				ImageType = ImageType.Image3D,
+				Extent = new Extent3D {
+					Depth = (uint)depth,
+					Height = (uint)height,
+					Width = (uint)width,
+				},
+				MipLevels = (uint)levelCount,
 				ArrayLayers = 1,
 				Format = XNAToVK.TextureFormat[(uint)format],
 				Tiling = ImageTiling.Linear,
@@ -1636,15 +1659,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				SharingMode = SharingMode.Exclusive,
 			});
 
-			var vulkanTexture = new VulkanTexture((uint) width, (uint) height, levelCount)
-			{
-				Image = textureImage
-			};
-			return vulkanTexture;
-		}
-
-		public IGLTexture CreateTexture3D(SurfaceFormat format, int width, int height, int depth, int levelCount)
-		{
 			throw new NotImplementedException();
 		}
 
@@ -1695,7 +1709,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			var vulkanTexture = texture as VulkanTexture;
 			var width = vulkanTexture.Width;
 			var height = vulkanTexture.Height;
-			DeviceSize imageSize = width * height * 4; // todo: not hard-code
+			DeviceSize imageSize = dataLength; // todo: not hard-code
 
 			createBuffer(imageSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
 
