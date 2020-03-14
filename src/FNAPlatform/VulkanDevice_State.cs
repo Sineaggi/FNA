@@ -579,6 +579,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			 */
 			var attributeDescriptions = new List<VertexInputAttributeDescription>();
 			Array.Clear(attrUse, 0, attrUse.Length);
+			int stride = 0;
 			for (int i = 0; i < numBindings; i += 1)
 			{
 				// Describe vertex attributes
@@ -649,7 +650,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 
 				// Describe vertex buffer layout
+				var x = 1;
+				stride = vertexDeclaration.VertexStride;
 				// todo: impl this!!!
+				//userVertexStride =
 				/*
 				IntPtr layout = mtlGetVertexBufferLayoutDescriptor(
 					descriptor,
@@ -674,6 +678,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			_descriptions = attributeDescriptions.ToArray();
 
+			_bindingDescription = new VertexInputBindingDescription
+			{
+				Stride = (uint)stride,
+				Binding = 0,
+				InputRate = VertexInputRate.Vertex,
+			};
+
 			// todo: this
 		/*
 		VertexDescriptorCache[hash] = descriptor;
@@ -683,7 +694,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		}
 
 		private VertexInputAttributeDescription []_descriptions = new VertexInputAttributeDescription[] {};
-
+		private VertexInputBindingDescription _bindingDescription;
 		private IntPtr FetchVertexDescriptor(
 			VertexDeclaration vertexDeclaration,
 			int vertexOffset
@@ -794,6 +805,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			VertexDescriptorCache[hash] = descriptor;
 			*/
+			_bindingDescription = new VertexInputBindingDescription
+			{
+				Stride = (uint)vertexDeclaration.VertexStride,
+				Binding = 0,
+				InputRate = VertexInputRate.Vertex,
+			};
 			return descriptor;
 		}
 

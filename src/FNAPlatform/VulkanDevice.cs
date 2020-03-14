@@ -1591,15 +1591,19 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public Image Image;
 			public DeviceMemory ImageMemory;
+			private Device device;
 
 			public VulkanTexture(
+				Device device,
 				//DeviceSize imageSize,
 				//Buffer buffer,
 				//DeviceMemory deviceMemory,
 				uint width,
 				uint height,
 				int levelCount
-			) {
+			)
+			{
+				this.device = device;
 				HasMipmaps = levelCount > 1;
 				//ImageSize = imageSize;
 				//Buffer = buffer;
@@ -1625,6 +1629,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 
 			public static readonly VulkanTexture NullTexture = new VulkanTexture();
+
+			public void Dispose()
+			{
+				device.DestroyImage(Image);
+				device.FreeMemory(ImageMemory);
+			}
 		}
 
 		#region DeleteBuffer Methods
@@ -1658,7 +1668,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				SharingMode = SharingMode.Exclusive,
 			});
 
-			return new VulkanTexture((uint) width, (uint) height, levelCount)
+			return new VulkanTexture(device, (uint) width, (uint) height, levelCount)
 			{
 				Image = textureImage
 			};
@@ -1692,9 +1702,36 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
+		#region DeleteTexture Method
+
+		private void DeleteTexture(IGLTexture texture)
+		{
+			VulkanTexture tex = texture as VulkanTexture;
+			/*
+			for (int i = 0; i < currentAttachments.Length; i += 1)
+			{
+				if (tex.Handle == currentAttachments[i])
+				{
+					currentAttachments[i] = IntPtr.Zero;
+				}
+			}
+			*/
+			for (int i = 0; i < Textures.Length; i += 1)
+			{
+				if (tex.Handle == Textures[i].Handle)
+				{
+					Textures[i] = VulkanTexture.NullTexture;
+					textureNeedsUpdate[i] = true;
+				}
+			}
+			tex.Dispose();
+		}
+
+		#endregion
+
 		public void AddDisposeTexture(IGLTexture texture)
 		{
-			throw new NotImplementedException();
+			DeleteTexture(texture);
 		}
 
 		CommandBuffer beginSingleTimeCommands()
@@ -1904,6 +1941,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void SetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int dataLength, SetDataOptions options)
 		{
+			(buffer as VulkanBuffer).SetData(
+				offsetInBytes,
+				data,
+				dataLength,
+				options
+			);
 			var vulkanBuffer = (buffer as VulkanBuffer);
 			var vertexBuffer = vulkanBuffer.Buffer;
 
@@ -1933,25 +1976,16 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public IGLBuffer GenIndexBuffer(bool dynamic, BufferUsage usage, int indexCount, IndexElementSize indexElementSize)
 		{
-			// todo: rewrite the fuck out of this
-			Buffer buffer;
-			DeviceMemory bufferMemory;
+			int elementSize = XNAToVK.IndexSize[(int) indexElementSize];
 
-			ulong size;
-			if (indexElementSize == IndexElementSize.SixteenBits)
-			{
-				size = (ulong)indexCount * 16;
-			}
-			else
-			{
-				size = (ulong)indexCount * 32;
-			}
+			DeviceSize size = (indexCount * elementSize);
+			createBuffer(size, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer, MemoryPropertyFlags.DeviceLocal, out var buffer, out var bufferMemory);
 
-			createBuffer(size, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer, MemoryPropertyFlags.DeviceLocal, out buffer, out bufferMemory);
+			IntPtr bufferSize = (IntPtr)(indexCount * elementSize);
 
-			IntPtr bufferSize = (IntPtr) (size);
-
-			return new VulkanBuffer(device, buffer, bufferMemory, bufferSize, usage);
+			VulkanBuffer newbuf = new VulkanBuffer(device, buffer, bufferMemory, bufferSize, usage);
+			Buffers.Add(newbuf);
+			return newbuf;
 		}
 
 		public void AddDisposeIndexBuffer(IGLBuffer buffer)
@@ -2350,12 +2384,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			// Bind the vertex buffers
 			for (int i = 0; i < bindings.Length; i += 1)
 			{
-				VertexBuffer vertexBuffer = bindings[i].VertexBuffer;
+				var binding = bindings[i];
+				VertexBuffer vertexBuffer = binding.VertexBuffer;
 				if (vertexBuffer != null)
 				{
-					int stride = bindings[i].VertexBuffer.VertexDeclaration.VertexStride;
+					int stride = vertexBuffer.VertexDeclaration.VertexStride;
 					int offset = (
-						((bindings[i].VertexOffset + baseVertex) * stride) +
+						((binding.VertexOffset + baseVertex) * stride) +
 						(vertexBuffer.buffer as VulkanBuffer).InternalOffset
 					);
 
@@ -2553,6 +2588,8 @@ namespace Microsoft.Xna.Framework.Graphics
 						}
 					},*/
 					VertexAttributeDescriptions = _descriptions, // todo: how to always make sure this is valid?
+					VertexBindingDescriptions = new [] { _bindingDescription },
+					/*
 					VertexBindingDescriptions = new VertexInputBindingDescription[]
 					{
 						new VertexInputBindingDescription
@@ -2562,7 +2599,7 @@ namespace Microsoft.Xna.Framework.Graphics
 							Stride = (uint)userVertexStride,
 							InputRate = VertexInputRate.Vertex,
 						}
-					},
+					},*/
 				},
 				InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
 				{
