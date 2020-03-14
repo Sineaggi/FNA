@@ -137,7 +137,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			public static readonly Format[] TextureFormat = new Format[]
 			{
-				Format.R8G8B8Unorm,	// SurfaceFormat.Color
+				Format.R8G8B8A8Unorm,	// SurfaceFormat.Color
 				Format.B5G6R5UnormPack16,	// SurfaceFormat.Bgr565
 				Format.B5G5R5A1UnormPack16,	// SurfaceFormat.Bgra5551
 				Format.B4G4R4A4UnormPack16,	// SurfaceFormat.Bgra4444
@@ -695,6 +695,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					"VK_KHR_swapchain",
 					//"VK_KHR_push_descriptor"
+				},
+				EnabledFeatures = new PhysicalDeviceFeatures
+				{
+					SamplerAnisotropy = true,
 				}
 			});
 
@@ -1260,20 +1264,23 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		DescriptorSet [] CreateDescriptorSets ()
 		{
-			var typeCount = new DescriptorPoolSize {
+			var ubo = new DescriptorPoolSize {
 				Type = DescriptorType.UniformBuffer,
 				DescriptorCount = 1
 			};
+			var sampler = new DescriptorPoolSize {
+				Type = DescriptorType.CombinedImageSampler,
+				DescriptorCount = 1
+			};
 			var descriptorPoolCreateInfo = new DescriptorPoolCreateInfo {
-				PoolSizes = new DescriptorPoolSize [] { typeCount },
+				PoolSizes = new DescriptorPoolSize [] { ubo, sampler },
 				MaxSets = 1
 			};
 			// todo: delete the fuck out of this
 			var descriptorPool = device.CreateDescriptorPool (descriptorPoolCreateInfo);
 
-			var descriptorSetLayout = _setLayout;
 			var descriptorSetAllocateInfo = new DescriptorSetAllocateInfo {
-				SetLayouts = new DescriptorSetLayout [] { descriptorSetLayout /*, _setLayout2 */ },
+				SetLayouts = new DescriptorSetLayout [] { _setLayout },
 				DescriptorPool = descriptorPool
 			};
 
@@ -1284,20 +1291,40 @@ namespace Microsoft.Xna.Framework.Graphics
 		private uint uniformBufferOffsetV;
 		private DeviceSize uniformBufferSizeV;
 
-		void UpdateDescriptorSets ()
+		void UpdateDescriptorSets()
 		{
-			var uniformBufferInfo = new DescriptorBufferInfo {
+			var uniformBufferInfo = new DescriptorBufferInfo
+			{
 				Buffer = uniformBufferV,
 				Offset = uniformBufferOffsetV,
 				Range = uniformBufferSizeV - uniformBufferOffsetV, // todo: how much data are we writing?
 			};
-			var writeDescriptorSet = new WriteDescriptorSet {
-				DstSet = descriptorSets [0],
+			var writeDescriptorSet = new WriteDescriptorSet
+			{
+				DstSet = descriptorSets[0],
+				DstBinding = 0, // yass
+				DstArrayElement = 0,
 				DescriptorType = DescriptorType.UniformBuffer,
-				BufferInfo = new DescriptorBufferInfo [] { uniformBufferInfo }
+				BufferInfo = new DescriptorBufferInfo[] {uniformBufferInfo}
 			};
 
-			device.UpdateDescriptorSets (new WriteDescriptorSet [] { writeDescriptorSet }, null);
+			var imageInfo = new DescriptorImageInfo
+			{
+				ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
+				ImageView = texture.ImageView,
+				Sampler = texture.Sampler,
+			};
+
+			var imageWriteDescriptorSet = new WriteDescriptorSet
+			{
+				DstSet = descriptorSets[0],
+				DstBinding = 4, // YASS!!!
+				DstArrayElement = 0,
+				DescriptorType = DescriptorType.CombinedImageSampler,
+				ImageInfo = new [] {imageInfo},
+			};
+
+			device.UpdateDescriptorSets (new WriteDescriptorSet [] { writeDescriptorSet, imageWriteDescriptorSet }, null);
 		}
 
 		private uint getMemoryTypeIndex(uint memoryTypeBits, MemoryPropertyFlags properties)
@@ -1590,6 +1617,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			public uint Height;
 
 			public Image Image;
+			public ImageView ImageView;
+			public Sampler Sampler;
 			public DeviceMemory ImageMemory;
 			private Device device;
 
@@ -1670,7 +1699,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			return new VulkanTexture(device, (uint) width, (uint) height, levelCount)
 			{
-				Image = textureImage
+				Image = textureImage,
 			};
 		}
 
@@ -1794,6 +1823,38 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			//vulkanTexture.Image = textureImage;
 			vulkanTexture.ImageMemory = textureImageMemory;
+
+			vulkanTexture.ImageView = device.CreateImageView(new ImageViewCreateInfo
+			{
+				Image = vulkanTexture.Image,
+				ViewType = ImageViewType.View2D,
+				Format = XNAToVK.TextureFormat[(uint) format],
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = ImageAspectFlags.Color,
+					BaseMipLevel = 0,
+					LevelCount = 1,
+					BaseArrayLayer = 0,
+					LayerCount = 1,
+				},
+			});
+
+			vulkanTexture.Sampler = device.CreateSampler(new SamplerCreateInfo
+			{
+				MagFilter = Filter.Linear,
+				MinFilter = Filter.Linear,
+				AddressModeU = SamplerAddressMode.Repeat,
+				AddressModeV = SamplerAddressMode.Repeat,
+				AddressModeW = SamplerAddressMode.Repeat,
+				AnisotropyEnable = true,
+				MaxAnisotropy = 16,
+				BorderColor = BorderColor.IntOpaqueBlack,
+				UnnormalizedCoordinates = false,
+				CompareEnable = false,
+				CompareOp = CompareOp.Always,
+				MipmapMode = SamplerMipmapMode.Linear,
+				// todo: handle lods
+			});
 		}
 		void createImage(MemoryPropertyFlags properties, Image image, out DeviceMemory imageMemory) {
 			var memRequirements = device.GetImageMemoryRequirements(image);
@@ -2506,6 +2567,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Resource Binding Method
 
+		VulkanTexture texture = null;
+
 		private void BindResources()
 		{
 			getMaybeCachedShaders(out var fshader, out var fname, out var vshader, out var vname);
@@ -2633,6 +2696,15 @@ namespace Microsoft.Xna.Framework.Graphics
 						{
 							ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B |
 							                 ColorComponentFlags.A,
+							// todo: use blend-state to let this be set dynamically.
+							BlendEnable = true,
+							SrcColorBlendFactor = Vulkan.BlendFactor.SrcAlpha,
+							DstColorBlendFactor = Vulkan.BlendFactor.OneMinusSrcAlpha,
+							ColorBlendOp = BlendOp.Add,
+							SrcAlphaBlendFactor = Vulkan.BlendFactor.One,
+							DstAlphaBlendFactor = Vulkan.BlendFactor.Zero,
+							AlphaBlendOp = BlendOp.Add,
+
 						}
 					}
 				},
@@ -2688,6 +2760,9 @@ namespace Microsoft.Xna.Framework.Graphics
 			*/
 
 			// Bind textures and their sampler states
+
+
+
 			for (int i = 0; i < Textures.Length; i += 1)
 			{
 				if (textureNeedsUpdate[i])
@@ -2699,6 +2774,9 @@ namespace Microsoft.Xna.Framework.Graphics
 						i
 					);
 					*/
+					texture = Textures[i];
+					int textureBindingOffset = 4;
+
 					textureNeedsUpdate[i] = false;
 				}
 				if (samplerNeedsUpdate[i])
