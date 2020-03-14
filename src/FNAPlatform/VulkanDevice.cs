@@ -44,6 +44,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public IntPtr BufferSize { get; }
 
+			private Device device;
+			private int prevDataLength = 0;
 			private bool boundThisFrame;
 
 			public int InternalOffset
@@ -57,16 +59,42 @@ namespace Microsoft.Xna.Framework.Graphics
 				boundThisFrame = true;
 			}
 
+			public void Reset()
+			{
+				InternalOffset = 0;
+				boundThisFrame = false;
+				prevDataLength = 0;
+			}
+
+			public void Dispose()
+			{
+				//objc_release(Handle);
+				//Handle = IntPtr.Zero;
+				device.DestroyBuffer(Buffer);
+				device.FreeMemory(BufferMemory);
+			}
+
 			public VulkanBuffer(
+				Device device,
 				Buffer buffer,
 				DeviceMemory bufferMemory,
 				IntPtr bufferSize,
 				BufferUsage usage
 			)
 			{
+				this.device = device;
 				Buffer = buffer;
 				BufferMemory = bufferMemory;
 				BufferSize = bufferSize;
+			}
+
+			public void SetData(
+				int offsetInBytes,
+				IntPtr data,
+				int dataLength,
+				SetDataOptions options
+			)
+			{
 			}
 		}
 
@@ -777,6 +805,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			*/
 
+			// Initialize vertex buffer cache
+			ldVertexBuffers = new ulong[MAX_BOUND_VERTEX_BUFFERS];
+			ldVertexBufferOffsets = new int[MAX_BOUND_VERTEX_BUFFERS];
+
 			/*
 			try
 			{
@@ -1162,10 +1194,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			graphicsQueue.WaitIdle();
 
 			// Reset buffers
-			//for (int i = 0; i < Buffers.Count; i += 1)
-			//{
-			//	Buffers[i].Reset();
-			//}
+			for (int i = 0; i < Buffers.Count; i += 1)
+			{
+				Buffers[i].Reset();
+			}
 			MojoShader.MOJOSHADER_vkEndFrame();
 
 			// We're done here.
@@ -1173,25 +1205,6 @@ namespace Microsoft.Xna.Framework.Graphics
 		}
 
 		public void SetStringMarker(string text)
-		{
-			throw new NotImplementedException();
-		}
-
-		public void DrawIndexedPrimitives(PrimitiveType primitiveType, int baseVertex, int minVertexIndex,
-			int numVertices,
-			int startIndex, int primitiveCount, IndexBuffer indices)
-		{
-			throw new NotImplementedException();
-		}
-
-		public void DrawInstancedPrimitives(PrimitiveType primitiveType, int baseVertex, int minVertexIndex,
-			int numVertices,
-			int startIndex, int primitiveCount, int instanceCount, IndexBuffer indices)
-		{
-			throw new NotImplementedException();
-		}
-
-		public void DrawPrimitives(PrimitiveType primitiveType, int vertexStart, int primitiveCount)
 		{
 			throw new NotImplementedException();
 		}
@@ -1242,6 +1255,8 @@ namespace Microsoft.Xna.Framework.Graphics
 		private DescriptorSet[] descriptorSets;
 
 		private DescriptorSetLayout _setLayout;
+
+		private List<VulkanBuffer> Buffers = new List<VulkanBuffer>();
 
 		DescriptorSet [] CreateDescriptorSets ()
 		{
@@ -1612,6 +1627,16 @@ namespace Microsoft.Xna.Framework.Graphics
 			public static readonly VulkanTexture NullTexture = new VulkanTexture();
 		}
 
+		#region DeleteBuffer Methods
+
+		private void DeleteBuffer(IGLBuffer buffer)
+		{
+			Buffers.Remove(buffer as VulkanBuffer);
+			(buffer as VulkanBuffer).Dispose();
+		}
+
+		#endregion
+
 		public IGLTexture CreateTexture2D(SurfaceFormat format, int width, int height, int levelCount,
 			bool isRenderTarget)
 		{
@@ -1832,16 +1857,16 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public IGLBuffer GenVertexBuffer(bool dynamic, BufferUsage usage, int vertexCount, int vertexStride)
 		{
-			Buffer buffer;
-			DeviceMemory bufferMemory;
-
 			ulong size = (ulong)vertexCount * (ulong)vertexStride;
 
-			createBuffer(size, BufferUsageFlags.VertexBuffer, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out buffer, out bufferMemory);
+			//createBuffer(size, BufferUsageFlags.VertexBuffer, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out buffer, out bufferMemory);
+			createBuffer(size, BufferUsageFlags.VertexBuffer | BufferUsageFlags.TransferDst, MemoryPropertyFlags.DeviceLocal, out var buffer, out var bufferMemory);
 
 			IntPtr bufferSize = (IntPtr) (vertexStride * vertexCount);
 
-			return new VulkanBuffer(buffer, bufferMemory, bufferSize, usage);
+			VulkanBuffer newbuf = new VulkanBuffer(device, buffer, bufferMemory, bufferSize, usage);
+			Buffers.Add(newbuf);
+			return newbuf;
 		}
 
 		private void createBuffer(DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties, out Buffer buffer, out DeviceMemory bufferMemory)
@@ -1874,23 +1899,30 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void AddDisposeVertexBuffer(IGLBuffer buffer)
 		{
-			throw new NotImplementedException();
+			DeleteBuffer(buffer);
 		}
 
 		public void SetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int dataLength, SetDataOptions options)
 		{
-			DeviceSize bufferSize = sizeof(uint) * dataLength;
+			var vulkanBuffer = (buffer as VulkanBuffer);
+			var vertexBuffer = vulkanBuffer.Buffer;
+
+			DeviceSize bufferSize = (uint)vulkanBuffer.BufferSize;
 			createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
 			var dst = device.MapMemory(stagingBufferMemory, 0, bufferSize, 0);
 			SDL.SDL_memcpy(dst, data, (IntPtr)dataLength);
 			device.UnmapMemory(stagingBufferMemory);
 
-			createBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer, MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
+			//createBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer, MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
 
 			copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
 
 			device.DestroyBuffer(stagingBuffer);
 			device.FreeMemory(stagingBufferMemory);
+
+			//var vulkanBuffer = (buffer as VulkanBuffer);
+			//vulkanBuffer.Buffer = vertexBuffer;
+			//vulkanBuffer.BufferMemory = vertexBufferMemory;
 		}
 
 		public void GetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int startIndex, int elementCount,
@@ -1901,6 +1933,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public IGLBuffer GenIndexBuffer(bool dynamic, BufferUsage usage, int indexCount, IndexElementSize indexElementSize)
 		{
+			// todo: rewrite the fuck out of this
 			Buffer buffer;
 			DeviceMemory bufferMemory;
 
@@ -1918,14 +1951,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			IntPtr bufferSize = (IntPtr) (size);
 
-			return new VulkanBuffer(buffer, bufferMemory, bufferSize, usage);
+			return new VulkanBuffer(device, buffer, bufferMemory, bufferSize, usage);
 		}
 
 		public void AddDisposeIndexBuffer(IGLBuffer buffer)
 		{
-			// todo: prio 1, needs to dispose index buffer?
-			//buffer.Dispose();
-			throw new NotImplementedException();
+			DeleteBuffer(buffer);
 		}
 
 		private void copyBuffer(Buffer srcBuffer, Buffer dstBuffer, DeviceSize size)
@@ -2021,6 +2052,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void SetIndexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int dataLength, SetDataOptions options)
 		{
+			(buffer as VulkanBuffer).SetData(
+				offsetInBytes,
+				data,
+				dataLength,
+				options
+				);
 			VulkanBuffer buf = buffer as VulkanBuffer;
 
 			// todo: is datalength already correct?
@@ -2330,15 +2367,7 @@ namespace Microsoft.Xna.Framework.Graphics
 							0,
 							(vertexBuffer.buffer as VulkanBuffer).Buffer,
 							offset
-							);
-						/*
-						mtlSetVertexBuffer(
-							renderCommandEncoder,
-							handle,
-							offset,
-							i
 						);
-						*/
 						ldVertexBuffers[i] = handle;
 						ldVertexBufferOffsets[i] = offset;
 					}
@@ -2473,6 +2502,13 @@ namespace Microsoft.Xna.Framework.Graphics
 						Binding = 0,
 						DescriptorCount = 1,
 					},
+					new DescriptorSetLayoutBinding
+					{
+						DescriptorType = DescriptorType.CombinedImageSampler,
+						StageFlags = ShaderStageFlags.Fragment,
+						Binding = 4,
+						DescriptorCount = 1,
+					}
 				},
 				//Flags = DescriptorSetLayoutCreateFlags.PushDescriptorKhr
 			});
@@ -2735,6 +2771,17 @@ namespace Microsoft.Xna.Framework.Graphics
 				ldPipelineState = pipelineState;
 			}
 			*/
+			//ldDepthStencilState = IntPtr.Zero;
+			ldFragUniformBuffer = IntPtr.Zero;
+			ldFragUniformOffset = 0;
+			ldVertUniformBuffer = IntPtr.Zero;
+			ldVertUniformOffset = 0;
+			//ldPipelineState = IntPtr.Zero;
+			for (int i = 0; i < MAX_BOUND_VERTEX_BUFFERS; i += 1)
+			{
+				ldVertexBuffers[i] = 0;
+				ldVertexBufferOffsets[i] = 0;
+			}
 		}
 
 		#endregion

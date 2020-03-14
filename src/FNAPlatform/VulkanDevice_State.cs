@@ -620,9 +620,9 @@ namespace Microsoft.Xna.Framework.Graphics
 					var vertexInputAttributeDescription = new VertexInputAttributeDescription
 					{
 						// todo: all of this is hardcoded. why?
-						Binding = (uint)attribLoc,
+						Binding = 0, // This is an input, not a descriptor set. Hard-code to 0.
 						Format = XNAToVK.VertexAttribType[(int) element.VertexElementFormat],
-						Location = 0, // todo: play around with this. may not be necessary to hard-code.
+						Location = (uint)attribLoc, // todo: fairly certain this is correct.
 						Offset = (uint)element.Offset, // todo: maybe correct
 					};
 					attributeDescriptions.Add(vertexInputAttributeDescription);
@@ -752,10 +752,10 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				var vertexInputAttributeDescription = new VertexInputAttributeDescription
 				{
-					// todo: all of this is hardcoded. why?
-					Binding = (uint)attribLoc,
+					// todo: Binding and Location and Offset need a rethink. no gaurantee this is correct.
+					Binding = 0,
 					Format = XNAToVK.VertexAttribType[(int) element.VertexElementFormat],
-					Location = 0, // todo: play around with this. may not be necessary to hard-code.
+					Location = (uint)attribLoc, // todo: play around with this. may not be necessary to hard-code.
 					Offset = (uint)element.Offset, // todo: maybe correct
 				};
 				attributeDescriptions.Add(vertexInputAttributeDescription);
