@@ -2343,6 +2343,25 @@ namespace Microsoft.Xna.Framework.Graphics
 			//return shaderModule;
 		}
 
+		private void DeleteEffect(IGLEffect effect)
+		{
+			IntPtr mtlEffectData = (effect as VulkanEffect).VKEffectData;
+			if (mtlEffectData == currentEffect)
+			{
+				MojoShader.MOJOSHADER_vkEffectEndPass(currentEffect);
+				MojoShader.MOJOSHADER_vkEffectEnd(
+					currentEffect,
+					ref shaderState
+				);
+				currentEffect = IntPtr.Zero;
+				currentTechnique = IntPtr.Zero;
+				currentPass = 0;
+				shaderState = new MojoShader.MOJOSHADER_vkShaderState();
+			}
+			MojoShader.MOJOSHADER_vkDeleteEffect(mtlEffectData);
+			MojoShader.MOJOSHADER_freeEffect(effect.EffectData);
+		}
+
 		public IGLEffect CloneEffect(IGLEffect effect)
 		{
 			throw new NotImplementedException();
@@ -2350,8 +2369,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void AddDisposeEffect(IGLEffect effect)
 		{
-			throw new NotImplementedException();
-			// todo: prio 1, shutdown, how to delete effect?
+			DeleteEffect(effect);
 		}
 
 		private IntPtr currentEffect = IntPtr.Zero;
