@@ -33,6 +33,171 @@ namespace Microsoft.Xna.Framework.Graphics
 {
 	internal partial class VulkanDevice : IGLDevice
 	{
+		private class VulkanTexture : IGLTexture
+		{
+			public uint Handle
+			{
+				get;
+				private set;
+			}
+
+			public bool HasMipmaps
+			{
+				get;
+				private set;
+			}
+
+			public uint Width
+			{
+				get;
+				private set;
+			}
+
+			public uint Height
+			{
+				get;
+				private set;
+			}
+
+			public bool IsPrivate
+			{
+				get;
+				private set;
+			}
+
+			public SurfaceFormat Format;
+			public TextureAddressMode WrapS;
+			public TextureAddressMode WrapT;
+			public TextureAddressMode WrapR;
+			public TextureFilter Filter;
+			public float Anisotropy;
+			public int MaxMipmapLevel;
+			public float LODBias;
+
+			//public DeviceSize ImageSize;
+			//public Buffer Buffer;
+			//public DeviceMemory DeviceMemory;
+			//public uint Width;
+			//public uint Height;
+
+			public Image Image;
+			public ImageView ImageView;
+			public Sampler Sampler;
+			public DeviceMemory ImageMemory;
+			private Device device;
+
+			public VulkanTexture(
+				Device device,
+				//DeviceSize imageSize,
+				//Buffer buffer,
+				//DeviceMemory deviceMemory,
+				uint width,
+				uint height,
+				SurfaceFormat format,
+				int levelCount,
+				bool isPrivate
+			)
+			{
+				this.device = device;
+				HasMipmaps = levelCount > 1;
+				//ImageSize = imageSize;
+				//Buffer = buffer;
+				//DeviceMemory = deviceMemory;
+				Width = width;
+				Height = height;
+				Format = format;
+				IsPrivate = isPrivate;
+
+				WrapS = TextureAddressMode.Wrap;
+				WrapT = TextureAddressMode.Wrap;
+				WrapR = TextureAddressMode.Wrap;
+				Filter = TextureFilter.Linear; // todo;
+				Anisotropy = 4.0f;
+				MaxMipmapLevel = 0;
+				LODBias = 0.0f;
+			}
+
+
+			// We can't set a SamplerState Texture to null, so use this.
+			private VulkanTexture()
+			{
+				Handle = 0;
+				//Target = GLenum.GL_TEXTURE_2D; // FIXME: Assumption! -flibit
+			}
+
+			public static readonly VulkanTexture NullTexture = new VulkanTexture();
+
+			public void Dispose()
+			{
+				device.DestroyImage(Image);
+				device.FreeMemory(ImageMemory);
+			}
+		}
+
+
+		#region Vulkan Renderbuffer Container Class
+
+		private class VulkanRenderbuffer : IGLRenderbuffer
+		{
+			public IntPtr Handle
+			{
+				get;
+				private set;
+			}
+
+			public IntPtr MultiSampleHandle
+			{
+				get;
+				private set;
+			}
+
+			public Format PixelFormat
+			{
+				get;
+				private set;
+			}
+
+			public int MultiSampleCount
+			{
+				get;
+				private set;
+			}
+
+			public VulkanRenderbuffer(
+				IntPtr handle,
+				Format pixelFormat,
+				int multiSampleCount,
+				IntPtr multiSampleHandle
+			) {
+				Handle = handle;
+				PixelFormat = pixelFormat;
+				MultiSampleCount = multiSampleCount;
+				MultiSampleHandle = multiSampleHandle;
+			}
+
+			public void Dispose()
+			{
+				if (MultiSampleHandle == IntPtr.Zero)
+				{
+					//todo
+					//objc_release(Handle);
+					Handle = IntPtr.Zero;
+				}
+				else
+				{
+					//todo
+					//objc_release(MultiSampleHandle);
+					MultiSampleHandle = IntPtr.Zero;
+
+					/* Don't release the regular Handle since
+					 * it's owned by the associated IGLTexture.
+					 */
+					Handle = IntPtr.Zero;
+				}
+			}
+		}
+
+		#endregion
 
 		#region Vulkan Buffer Container Class
 
@@ -45,7 +210,11 @@ namespace Microsoft.Xna.Framework.Graphics
 			public IntPtr BufferSize { get; }
 
 			private Device device;
+			private PhysicalDeviceMemoryProperties memProperties;
+			private int internalBufferSize = 0;
 			private int prevDataLength = 0;
+			private int prevInternalOffset;
+			private BufferUsage usage;
 			private bool boundThisFrame;
 
 			public int InternalOffset
@@ -74,18 +243,59 @@ namespace Microsoft.Xna.Framework.Graphics
 				device.FreeMemory(BufferMemory);
 			}
 
-			public VulkanBuffer(
-				Device device,
+			public VulkanBuffer(Device device,
+				PhysicalDeviceMemoryProperties memProperties,
 				Buffer buffer,
 				DeviceMemory bufferMemory,
-				IntPtr bufferSize,
-				BufferUsage usage
-			)
+				BufferUsage usage,
+				IntPtr bufferSize)
 			{
 				this.device = device;
+				this.memProperties = memProperties;
+				this.usage = usage;
+
 				Buffer = buffer;
 				BufferMemory = bufferMemory;
 				BufferSize = bufferSize;
+
+				CreateBackingBuffer(-1);
+			}
+
+			public Boolean DataWasSet { get; private set; }
+
+			private void CreateBackingBuffer(int prevSize)
+			{
+				IntPtr oldBuffer = IntPtr.Zero;
+				IntPtr oldContents = IntPtr.Zero;
+				/*
+				IntPtr oldBuffer = Handle;
+				IntPtr oldContents = Contents;
+
+				Handle = mtlNewBufferWithLength(
+					mtlDevice,
+					internalBufferSize,
+					usage == BufferUsage.WriteOnly ?
+						MTLResourceOptions.CPUCacheModeWriteCombined :
+						MTLResourceOptions.CPUCacheModeDefaultCache
+				);
+				Contents = mtlGetBufferContentsPtr(Handle);
+				*/
+
+				//todo
+				//createBuffer(device, memProperties, );
+
+				// Copy over data from old buffer
+				if (oldBuffer != IntPtr.Zero)
+				{
+					/*
+					SDL.SDL_memcpy(
+						Contents,
+						oldContents,
+						(IntPtr) prevSize
+					);
+					objc_release(oldBuffer);
+					*/
+				}
 			}
 
 			public void SetData(
@@ -95,6 +305,83 @@ namespace Microsoft.Xna.Framework.Graphics
 				SetDataOptions options
 			)
 			{
+				return;
+				DataWasSet = true;
+				if (options == SetDataOptions.None && boundThisFrame)
+				{
+					throw new Exception("this block isn't supported");
+					//device.Stall();
+					boundThisFrame = true;
+				}
+				else if (options == SetDataOptions.Discard && boundThisFrame)
+				{
+					InternalOffset += (int) BufferSize;
+					if (InternalOffset + dataLength > internalBufferSize)
+					{
+						// Expand!
+						int prevSize = internalBufferSize;
+						internalBufferSize *= 2;
+						CreateBackingBuffer(prevSize);
+					}
+				}
+
+				// Copy previous contents, if needed
+				if (prevInternalOffset != InternalOffset && dataLength < (int) BufferSize)
+				{
+					throw new NotImplementedException();
+					/*
+					SDL.SDL_memcpy(
+						Contents + InternalOffset,
+						Contents + prevInternalOffset,
+						BufferSize
+					);
+					*/
+				}
+
+				// Copy the data into the buffer
+				throw new NotImplementedException();
+				/*
+				SDL.SDL_memcpy(
+					Contents + InternalOffset + offsetInBytes,
+					data,
+					(IntPtr) dataLength
+				);
+				*/
+
+				prevInternalOffset = InternalOffset;
+				prevDataLength = (int) BufferSize;
+			}
+
+			public void SetData(
+				int offsetInBytes,
+				IntPtr data,
+				int dataLength
+			)
+			{
+				return;
+				InternalOffset += prevDataLength;
+				if (InternalOffset + dataLength > internalBufferSize)
+				{
+					// Expand!
+					int prevSize = internalBufferSize;
+					internalBufferSize = Math.Max(
+						internalBufferSize * 2,
+						internalBufferSize + dataLength
+					);
+					CreateBackingBuffer(prevSize);
+				}
+
+				// Copy the data into the buffer
+				throw new NotImplementedException();
+				/*
+				SDL.SDL_memcpy(
+					Contents + InternalOffset,
+					data + offsetInBytes,
+					(IntPtr) dataLength
+				);
+				*/
+
+				prevDataLength = dataLength;
 			}
 		}
 
@@ -412,6 +699,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public int Height { get; private set; }
 
+			public Format PixelFormat
+			{
+				get;
+				private set;
+			}
+
 			public DepthFormat DepthFormat { get; private set; }
 
 			public int MultiSampleCount { get; private set; }
@@ -420,6 +713,11 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			private uint colorAttachment;
 			private uint depthStencilAttachment;
+
+			public IntPtr ColorBuffer = IntPtr.Zero;
+			public IntPtr MultiSampleColorBuffer = IntPtr.Zero;
+			public IntPtr DepthStencilBuffer = IntPtr.Zero;
+
 			private VulkanDevice vkDevice;
 
 			public VulkanBackbuffer(
@@ -448,6 +746,8 @@ namespace Microsoft.Xna.Framework.Graphics
 					depthStencilAttachment = 0;
 					return;
 				}
+
+				PixelFormat = Format.R8G8B8A8Unorm;
 			}
 
 			public void Dispose()
@@ -555,13 +855,25 @@ namespace Microsoft.Xna.Framework.Graphics
 		private Bool32 DebugCallback(DebugReportFlagsExt flags, DebugReportObjectTypeExt objectType, ulong objectHandle,
 			IntPtr location, int messageCode, IntPtr layerPrefix, IntPtr message, IntPtr userData)
 		{
+			var umessage = Marshal.PtrToStringAnsi(message);
 			// todo: if I come across something I want to ignore, return false
+
+			if (umessage.Contains("Device Extension")
+			    || umessage.Contains("Loading layer library")
+			    || umessage.Contains("Inserted device layer"))
+			{
+
+			}
+			else
+			{
+				int x = 2;
+			}
 
 			if (flags.HasFlag(DebugReportFlagsExt.Error))
 			{
-				var umessage = Marshal.PtrToStringAnsi(message);
 				Debug.WriteLine($"{flags}: {umessage}");
 			}
+
 
 			return true;
 		}
@@ -772,6 +1084,9 @@ namespace Microsoft.Xna.Framework.Graphics
 				var properties = physicalDevice.GetFormatProperties(format);
 			}
 
+			var rgbaprops = physicalDevice.GetFormatProperties(Format.R8G8B8A8Unorm);
+			var bgraprops = physicalDevice.GetFormatProperties(Format.B8G8R8A8Unorm);
+
 			// Add fallbacks for missing texture formats on NVidia hardware
 			for (int i = 0; i < XNAToVK.TextureFormat.Length; i++)
 			{
@@ -781,11 +1096,15 @@ namespace Microsoft.Xna.Framework.Graphics
 				// These will have flags like 'can be used for VertexBuffer' usage.
 				// We only care about image feature flags.
 
+				var bufferFeatures = properties.BufferFeatures;
+				var linearTilingFeatures = properties.LinearTilingFeatures;
+				var optimalTilingFeatures = properties.OptimalTilingFeatures;
+
 				// todo: need to figure out what flags actually need checking.
 				// todo: need to find out exactly what flags NVidia 1080ti supports.
-				if (!properties.BufferFeatures.HasFlag(FormatFeatureFlags.SampledImage) ||
-				    !properties.LinearTilingFeatures.HasFlag(FormatFeatureFlags.SampledImageFilterLinear) ||
-				    !properties.OptimalTilingFeatures.HasFlag(FormatFeatureFlags.SampledImageFilterLinear))
+				if (!bufferFeatures.HasFlag(FormatFeatureFlags.SampledImage) ||
+				    !linearTilingFeatures.HasFlag(FormatFeatureFlags.SampledImageFilterLinear) ||
+				    !optimalTilingFeatures.HasFlag(FormatFeatureFlags.SampledImageFilterLinear))
 				{
 					Console.WriteLine($"Unsupported tex {format}");
 					if (format == Format.R8G8B8Unorm)
@@ -793,6 +1112,17 @@ namespace Microsoft.Xna.Framework.Graphics
 						XNAToVK.TextureFormat[i] = Format.R8G8B8A8Unorm;
 					}
 					// todo: else handle other formats too.
+				}
+
+
+
+				if (!bufferFeatures.HasFlag(FormatFeatureFlags.ColorAttachment))
+				{
+					int x = 2;
+				}
+				else
+				{
+
 				}
 			}
 
@@ -808,6 +1138,13 @@ namespace Microsoft.Xna.Framework.Graphics
 					= MTLPixelFormat.BGRA8Unorm;
 			}
 			*/
+
+			// Initialize attachment arrays
+			int numAttachments = GraphicsDevice.MAX_RENDERTARGET_BINDINGS;
+			currentAttachments = new IntPtr[numAttachments];
+			currentColorFormats = new Format[numAttachments];
+			currentMSAttachments = new IntPtr[numAttachments];
+			currentAttachmentSlices = new CubeMapFace[numAttachments];
 
 			// Initialize vertex buffer cache
 			ldVertexBuffers = new ulong[MAX_BOUND_VERTEX_BUFFERS];
@@ -974,7 +1311,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				Surface = surface,
 				MinImageCount = Math.Max(2, surfaceCaps.MinImageCount),
 				ImageFormat = format, // todo: get this correctly
-				ImageColorSpace = ColorSpaceKhr.SrgbNonlinear,
+				ImageColorSpace = ColorSpaceKhr.SrgbNonlinear, // set this
 				ImageExtent = new Extent2D
 				{
 					Width = width,
@@ -1052,7 +1389,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void ResetBackbuffer(PresentationParameters presentationParameters, GraphicsAdapter adapter)
 		{
-			throw new NotImplementedException();
+			//throw new NotImplementedException();
 		}
 
 		ImageMemoryBarrier imageMemoryBarrierz(Image image, AccessFlags srcAccessMask, AccessFlags dstAccessMask, ImageLayout oldLayout, ImageLayout newLayout)
@@ -1308,23 +1645,29 @@ namespace Microsoft.Xna.Framework.Graphics
 				BufferInfo = new DescriptorBufferInfo[] {uniformBufferInfo}
 			};
 
-			var imageInfo = new DescriptorImageInfo
-			{
-				ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
-				ImageView = texture.ImageView,
-				Sampler = texture.Sampler,
-			};
+			List<WriteDescriptorSet> writeDescriptorSets = new List<WriteDescriptorSet>();
+			writeDescriptorSets.Add(writeDescriptorSet);
 
-			var imageWriteDescriptorSet = new WriteDescriptorSet
-			{
-				DstSet = descriptorSets[0],
-				DstBinding = 4, // YASS!!!
-				DstArrayElement = 0,
-				DescriptorType = DescriptorType.CombinedImageSampler,
-				ImageInfo = new [] {imageInfo},
-			};
+			if (texture.Sampler != null) {
+				var imageInfo = new DescriptorImageInfo
+				{
+					ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
+					ImageView = texture.ImageView,
+					Sampler = texture.Sampler,
+				};
 
-			device.UpdateDescriptorSets (new WriteDescriptorSet [] { writeDescriptorSet, imageWriteDescriptorSet }, null);
+				var imageWriteDescriptorSet = new WriteDescriptorSet
+				{
+					DstSet = descriptorSets[0],
+					DstBinding = 4, // YASS!!!
+					DstArrayElement = 0,
+					DescriptorType = DescriptorType.CombinedImageSampler,
+					ImageInfo = new [] {imageInfo},
+				};
+				writeDescriptorSets.Add(imageWriteDescriptorSet);
+			}
+
+			device.UpdateDescriptorSets (writeDescriptorSets.ToArray(), null);
 		}
 
 		private uint getMemoryTypeIndex(uint memoryTypeBits, MemoryPropertyFlags properties)
@@ -1345,7 +1688,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void SetPresentationInterval(PresentInterval presentInterval)
 		{
-			throw new NotImplementedException();
+			// todo: handle this with vulkan
+			Console.WriteLine($"Dropping present interval {presentInterval}");
+			//throw new NotImplementedException();
 		}
 
 		private Rectangle scissorRectangle = new Rectangle(
@@ -1570,15 +1915,126 @@ namespace Microsoft.Xna.Framework.Graphics
 			needNewRenderPass |= clearTarget | clearDepth | clearStencil;
 		}
 
+		#region Render Target Cache Variables
+
+		private readonly IntPtr[] currentAttachments;
+		private readonly Format[] currentColorFormats;
+		private readonly IntPtr[] currentMSAttachments;
+		private readonly CubeMapFace[] currentAttachmentSlices;
+		private IntPtr currentDepthStencilBuffer;
+		private DepthFormat currentDepthFormat;
+		private int currentSampleCount;
+
+		#endregion
+
+		#region SetRenderTargetsMethods
+
 		public void SetRenderTargets(RenderTargetBinding[] renderTargets, IGLRenderbuffer renderbuffer,
 			DepthFormat depthFormat)
 		{
-			throw new NotImplementedException();
+			// Perform any pending clears before switching render targets
+			if (shouldClearColor || shouldClearDepth || shouldClearStencil)
+			{
+				UpdateRenderPass();
+			}
+
+			// Force an update to the render pass
+			needNewRenderPass = true;
+
+			// Bind the correct framebuffer
+			ResetAttachments();
+			if (renderTargets == null)
+			{
+				BindBackbuffer();
+				return;
+			}
+
+			// Update color buffers
+			int i;
+			for (i = 0; i < renderTargets.Length; i += 1)
+			{
+				IRenderTarget rt = renderTargets[i].RenderTarget as IRenderTarget;
+				currentAttachmentSlices[i] = renderTargets[i].CubeMapFace;
+				if (rt.ColorBuffer != null)
+				{
+					VulkanRenderbuffer rb = rt.ColorBuffer as VulkanRenderbuffer;
+					currentAttachments[i] = rb.Handle;
+					currentColorFormats[i] = rb.PixelFormat;
+					currentSampleCount = rb.MultiSampleCount;
+					currentMSAttachments[i] = rb.MultiSampleHandle;
+				}
+				else
+				{
+					VulkanTexture tex = renderTargets[i].RenderTarget.texture as VulkanTexture;
+					currentAttachments[i] = (IntPtr)tex.Handle;//todo
+					currentColorFormats[i] = XNAToVK.TextureFormat[(int) tex.Format];
+					currentSampleCount = 0;
+				}
+			}
+
+			// Update depth stencil buffer
+			IntPtr handle = IntPtr.Zero;
+			if (renderbuffer != null)
+			{
+				handle = (renderbuffer as VulkanRenderbuffer).Handle;
+			}
+			currentDepthStencilBuffer = handle;
+			currentDepthFormat = (
+				(currentDepthStencilBuffer == IntPtr.Zero) ?
+					DepthFormat.None :
+					depthFormat
+			);
 		}
+
+		private void ResetAttachments()
+		{
+			for (int i = 0; i < currentAttachments.Length; i += 1)
+			{
+				currentAttachments[i] = IntPtr.Zero;
+				currentColorFormats[i] = Format.Undefined;
+				currentMSAttachments[i] = IntPtr.Zero;
+				currentAttachmentSlices[i] = (CubeMapFace) 0;
+			}
+			currentDepthStencilBuffer = IntPtr.Zero;
+			currentDepthFormat = DepthFormat.None;
+			currentSampleCount = 0;
+		}
+
+		private void BindBackbuffer()
+		{
+			VulkanBackbuffer bb = Backbuffer as VulkanBackbuffer;
+			currentAttachments[0] = bb.ColorBuffer;
+			currentColorFormats[0] = bb.PixelFormat;
+			currentDepthStencilBuffer = bb.DepthStencilBuffer;
+			currentDepthFormat = bb.DepthFormat;
+			currentSampleCount = bb.MultiSampleCount;
+			currentMSAttachments[0] = bb.MultiSampleColorBuffer;
+			currentAttachmentSlices[0] = (CubeMapFace) 0;
+		}
+
+		#endregion
 
 		public void ResolveTarget(RenderTargetBinding target)
 		{
-			throw new NotImplementedException();
+			// The target is resolved at the end of each render pass.
+
+			// If the target has mipmaps, regenerate them now
+			if (target.RenderTarget.LevelCount > 1)
+			{
+				EndPass();
+
+				throw new Exception("Can't generate mips yet.");
+				/*
+				IntPtr blit = mtlMakeBlitCommandEncoder(commandBuffer);
+				mtlGenerateMipmapsForTexture(
+					blit,
+					(target.RenderTarget.texture as MetalTexture).Handle
+				);
+				mtlEndEncoding(blit);
+				*/
+
+				needNewRenderPass = true;
+			}
 		}
 
 		public void ReadBackbuffer(IntPtr data, int dataLen, int startIndex, int elementCount, int elementSizeInBytes,
@@ -1586,84 +2042,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			int subY, int subW, int subH)
 		{
 			throw new NotImplementedException();
-		}
-
-		private class VulkanTexture : IGLTexture
-		{
-			public uint Handle
-			{
-				get;
-				private set;
-			}
-
-			public bool HasMipmaps
-			{
-				get;
-				private set;
-			}
-
-			public TextureAddressMode WrapS;
-			public TextureAddressMode WrapT;
-			public TextureAddressMode WrapR;
-			public TextureFilter Filter;
-			public float Anisotropy;
-			public int MaxMipmapLevel;
-			public float LODBias;
-
-			//public DeviceSize ImageSize;
-			//public Buffer Buffer;
-			//public DeviceMemory DeviceMemory;
-			public uint Width;
-			public uint Height;
-
-			public Image Image;
-			public ImageView ImageView;
-			public Sampler Sampler;
-			public DeviceMemory ImageMemory;
-			private Device device;
-
-			public VulkanTexture(
-				Device device,
-				//DeviceSize imageSize,
-				//Buffer buffer,
-				//DeviceMemory deviceMemory,
-				uint width,
-				uint height,
-				int levelCount
-			)
-			{
-				this.device = device;
-				HasMipmaps = levelCount > 1;
-				//ImageSize = imageSize;
-				//Buffer = buffer;
-				//DeviceMemory = deviceMemory;
-				Width = width;
-				Height = height;
-
-				WrapS = TextureAddressMode.Wrap;
-				WrapT = TextureAddressMode.Wrap;
-				WrapR = TextureAddressMode.Wrap;
-				Filter = TextureFilter.Linear;
-				Anisotropy = 4.0f;
-				MaxMipmapLevel = 0;
-				LODBias = 0.0f;
-			}
-
-
-			// We can't set a SamplerState Texture to null, so use this.
-			private VulkanTexture()
-			{
-				Handle = 0;
-				//Target = GLenum.GL_TEXTURE_2D; // FIXME: Assumption! -flibit
-			}
-
-			public static readonly VulkanTexture NullTexture = new VulkanTexture();
-
-			public void Dispose()
-			{
-				device.DestroyImage(Image);
-				device.FreeMemory(ImageMemory);
-			}
 		}
 
 		#region DeleteBuffer Methods
@@ -1679,6 +2057,24 @@ namespace Microsoft.Xna.Framework.Graphics
 		public IGLTexture CreateTexture2D(SurfaceFormat format, int width, int height, int levelCount,
 			bool isRenderTarget)
 		{
+			ImageUsageFlags usageFlags;
+			if (!isRenderTarget)
+			{
+				usageFlags = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled;
+
+			}
+			else
+			{
+				Console.WriteLine("USing render targets\n");
+				usageFlags = ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled;
+			}
+
+			if (format==SurfaceFormat.ColorBgraEXT)
+			{
+				int x = 2;
+			}
+			//usageFlags = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled;
+
 			var textureImage = device.CreateImage(new ImageCreateInfo
 			{
 				ImageType = ImageType.Image2D,
@@ -1690,14 +2086,21 @@ namespace Microsoft.Xna.Framework.Graphics
 				MipLevels = (uint)levelCount,
 				ArrayLayers = 1,
 				Format = XNAToVK.TextureFormat[(uint)format],
-				Tiling = ImageTiling.Linear,
+				Tiling = ImageTiling.Optimal, // todo: linear or optimal?
 				InitialLayout = ImageLayout.Undefined,
-				Usage = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled, // todo: use isRenderTarget here?
+				Usage = usageFlags, // todo: use isRenderTarget here?
 				Samples = SampleCountFlags.Count1,
 				SharingMode = SharingMode.Exclusive,
 			});
 
-			return new VulkanTexture(device, (uint) width, (uint) height, levelCount)
+			return new VulkanTexture(
+				device,
+				(uint) width,
+				(uint) height,
+				format,
+				levelCount,
+				isRenderTarget
+				)
 			{
 				Image = textureImage,
 			};
@@ -1797,10 +2200,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			IntPtr data,
 			int dataLength)
 		{
-			var vulkanTexture = texture as VulkanTexture;
-			var width = vulkanTexture.Width;
-			var height = vulkanTexture.Height;
+			var tex = texture as VulkanTexture;
+			var width = tex.Width;
+			var height = tex.Height;
 			DeviceSize imageSize = dataLength; // todo: not hard-code
+
+			if (tex.IsPrivate)
+			{
+				throw new Exception("This is not yet supported.");
+			}
 
 			createBuffer(imageSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
 
@@ -1810,23 +2218,23 @@ namespace Microsoft.Xna.Framework.Graphics
 			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
 			device.UnmapMemory(stagingBufferMemory);
 
-			createImage(MemoryPropertyFlags.DeviceLocal, vulkanTexture.Image, out var textureImageMemory);
+			createImage(MemoryPropertyFlags.DeviceLocal, tex.Image, out var textureImageMemory);
 
 			var fformat = XNAToVK.TextureFormat[(int) format];
 
-			transitionImageLayout(vulkanTexture.Image, fformat, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
-			copyBufferToImage(stagingBuffer, vulkanTexture.Image, width, height);
-			transitionImageLayout(vulkanTexture.Image, fformat, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+			transitionImageLayout(tex.Image, fformat, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
+			copyBufferToImage(stagingBuffer, tex.Image, width, height);
+			transitionImageLayout(tex.Image, fformat, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
 
 			device.DestroyBuffer(stagingBuffer);
 			device.FreeMemory(stagingBufferMemory);
 
 			//vulkanTexture.Image = textureImage;
-			vulkanTexture.ImageMemory = textureImageMemory;
+			tex.ImageMemory = textureImageMemory;
 
-			vulkanTexture.ImageView = device.CreateImageView(new ImageViewCreateInfo
+			tex.ImageView = device.CreateImageView(new ImageViewCreateInfo
 			{
-				Image = vulkanTexture.Image,
+				Image = tex.Image,
 				ViewType = ImageViewType.View2D,
 				Format = XNAToVK.TextureFormat[(uint) format],
 				SubresourceRange = new ImageSubresourceRange
@@ -1839,10 +2247,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				},
 			});
 
-			vulkanTexture.Sampler = device.CreateSampler(new SamplerCreateInfo
+			tex.Sampler = device.CreateSampler(new SamplerCreateInfo
 			{
-				MagFilter = Filter.Linear,
-				MinFilter = Filter.Linear,
+				MagFilter = Filter.Linear, // todo
+				MinFilter = Filter.Linear, // todo
 				AddressModeU = SamplerAddressMode.Repeat,
 				AddressModeV = SamplerAddressMode.Repeat,
 				AddressModeW = SamplerAddressMode.Repeat,
@@ -1852,7 +2260,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				UnnormalizedCoordinates = false,
 				CompareEnable = false,
 				CompareOp = CompareOp.Always,
-				MipmapMode = SamplerMipmapMode.Linear,
+				MipmapMode = SamplerMipmapMode.Linear, // todo
 				// todo: handle lods
 			});
 		}
@@ -1962,27 +2370,36 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			IntPtr bufferSize = (IntPtr) (vertexStride * vertexCount);
 
-			VulkanBuffer newbuf = new VulkanBuffer(device, buffer, bufferMemory, bufferSize, usage);
+			VulkanBuffer newbuf = new VulkanBuffer(device, physicalDevice.GetMemoryProperties(), buffer, bufferMemory, usage, bufferSize);
 			Buffers.Add(newbuf);
 			return newbuf;
 		}
 
-		private void createBuffer(DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties, out Buffer buffer, out DeviceMemory bufferMemory)
+		private void createBuffer(DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties,
+			out Buffer buffer, out DeviceMemory bufferMemory)
+		{
+			createBuffer(device, physicalDevice.GetMemoryProperties(), size, usage, properties, out buffer, out bufferMemory);
+		}
+
+		private static void createBuffer(Device device, PhysicalDeviceMemoryProperties memProperties, DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties, out Buffer buffer, out DeviceMemory bufferMemory)
 		{
 			buffer = device.CreateBuffer(new BufferCreateInfo
 				{Size = size, Usage = usage, SharingMode = SharingMode.Exclusive});
 
 			var memRequirements = device.GetBufferMemoryRequirements(buffer);
 
-			bufferMemory = device.AllocateMemory(new MemoryAllocateInfo { AllocationSize = memRequirements.Size, MemoryTypeIndex = findMemoryType(memRequirements.MemoryTypeBits, properties)});
+			bufferMemory = device.AllocateMemory(new MemoryAllocateInfo { AllocationSize = memRequirements.Size, MemoryTypeIndex = findMemoryType(memProperties, memRequirements.MemoryTypeBits, properties)});
 
 			device.BindBufferMemory(buffer, bufferMemory, 0);
 		}
 
 		private uint findMemoryType(uint memoryTypeBits, MemoryPropertyFlags properties)
 		{
-			var memProperties = physicalDevice.GetMemoryProperties();
+			return findMemoryType(physicalDevice.GetMemoryProperties(), memoryTypeBits, properties);
+		}
 
+		private static uint findMemoryType(PhysicalDeviceMemoryProperties memProperties, uint memoryTypeBits, MemoryPropertyFlags properties)
+		{
 			for (uint i = 0; i < memProperties.MemoryTypeCount; ++i)
 			{
 				if (Convert.ToBoolean(memoryTypeBits & 1 << (int) i) &&
@@ -2044,7 +2461,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			IntPtr bufferSize = (IntPtr)(indexCount * elementSize);
 
-			VulkanBuffer newbuf = new VulkanBuffer(device, buffer, bufferMemory, bufferSize, usage);
+			VulkanBuffer newbuf = new VulkanBuffer(device, physicalDevice.GetMemoryProperties(), buffer, bufferMemory, usage, bufferSize);
 			Buffers.Add(newbuf);
 			return newbuf;
 		}
@@ -2806,6 +3223,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						i
 					);
 					*/
+					throw new Exception("Unsupoprted sampler");
 					samplerNeedsUpdate[i] = false;
 				}
 			}
