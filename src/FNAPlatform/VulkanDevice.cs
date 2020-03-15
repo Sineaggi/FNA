@@ -11,6 +11,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Dynamic;
 using System.IO;
@@ -203,14 +204,20 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private class VulkanBuffer : IGLBuffer
 		{
+			public IntPtr Contents
+			{
+				get;
+				private set;
+			}
+
 			public Buffer Buffer { get; private set; }
 
 			public DeviceMemory BufferMemory { get; private set; }
 
 			public IntPtr BufferSize { get; }
 
-			private Device device;
-			private PhysicalDeviceMemoryProperties memProperties;
+			private VulkanDevice device;
+			private BufferUsageFlags usageFlags;
 			private int internalBufferSize = 0;
 			private int prevDataLength = 0;
 			private int prevInternalOffset;
@@ -239,24 +246,21 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				//objc_release(Handle);
 				//Handle = IntPtr.Zero;
-				device.DestroyBuffer(Buffer);
-				device.FreeMemory(BufferMemory);
+				device.device.DestroyBuffer(Buffer);
+				device.device.FreeMemory(BufferMemory);
 			}
 
-			public VulkanBuffer(Device device,
-				PhysicalDeviceMemoryProperties memProperties,
-				Buffer buffer,
-				DeviceMemory bufferMemory,
+			public VulkanBuffer(VulkanDevice device,
+				BufferUsageFlags usageFlags,
 				BufferUsage usage,
 				IntPtr bufferSize)
 			{
 				this.device = device;
-				this.memProperties = memProperties;
+				this.usageFlags = usageFlags;
 				this.usage = usage;
 
-				Buffer = buffer;
-				BufferMemory = bufferMemory;
 				BufferSize = bufferSize;
+				internalBufferSize = (int) bufferSize;
 
 				CreateBackingBuffer(-1);
 			}
@@ -265,36 +269,31 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			private void CreateBackingBuffer(int prevSize)
 			{
-				IntPtr oldBuffer = IntPtr.Zero;
-				IntPtr oldContents = IntPtr.Zero;
-				/*
-				IntPtr oldBuffer = Handle;
+				Buffer oldBuffer = Buffer;
+				DeviceMemory oldDeviceMemory = BufferMemory;
 				IntPtr oldContents = Contents;
 
-				Handle = mtlNewBufferWithLength(
-					mtlDevice,
-					internalBufferSize,
-					usage == BufferUsage.WriteOnly ?
-						MTLResourceOptions.CPUCacheModeWriteCombined :
-						MTLResourceOptions.CPUCacheModeDefaultCache
-				);
-				Contents = mtlGetBufferContentsPtr(Handle);
-				*/
-
-				//todo
-				//createBuffer(device, memProperties, );
+				// todo: consult FNA usage flags.
+				// todo: use more efficient texture access? make host coherent buffers only for user data
+				// otherwise, shuffle data with copy buffer calls.
+				device.createBuffer(internalBufferSize, usageFlags, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var createdBuffer, out var createdBufferMemory);
+				Buffer = createdBuffer;
+				BufferMemory = createdBufferMemory;
+				Contents = device.device.MapMemory(BufferMemory, 0, internalBufferSize, 0);
 
 				// Copy over data from old buffer
-				if (oldBuffer != IntPtr.Zero)
+				if (oldBuffer != null)
 				{
-					/*
 					SDL.SDL_memcpy(
 						Contents,
 						oldContents,
 						(IntPtr) prevSize
 					);
-					objc_release(oldBuffer);
-					*/
+					// todo: add support for this.
+					//device.device.WaitIdle();
+					//device.device.UnmapMemory(oldDeviceMemory);
+					//device.device.DestroyBuffer(oldBuffer);
+					//device.device.FreeMemory(oldDeviceMemory);
 				}
 			}
 
@@ -305,11 +304,11 @@ namespace Microsoft.Xna.Framework.Graphics
 				SetDataOptions options
 			)
 			{
-				return;
 				DataWasSet = true;
 				if (options == SetDataOptions.None && boundThisFrame)
 				{
 					throw new Exception("this block isn't supported");
+					device.device.WaitIdle();
 					//device.Stall();
 					boundThisFrame = true;
 				}
@@ -328,25 +327,19 @@ namespace Microsoft.Xna.Framework.Graphics
 				// Copy previous contents, if needed
 				if (prevInternalOffset != InternalOffset && dataLength < (int) BufferSize)
 				{
-					throw new NotImplementedException();
-					/*
 					SDL.SDL_memcpy(
 						Contents + InternalOffset,
 						Contents + prevInternalOffset,
 						BufferSize
 					);
-					*/
 				}
 
 				// Copy the data into the buffer
-				throw new NotImplementedException();
-				/*
 				SDL.SDL_memcpy(
 					Contents + InternalOffset + offsetInBytes,
 					data,
 					(IntPtr) dataLength
 				);
-				*/
 
 				prevInternalOffset = InternalOffset;
 				prevDataLength = (int) BufferSize;
@@ -358,7 +351,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				int dataLength
 			)
 			{
-				return;
 				InternalOffset += prevDataLength;
 				if (InternalOffset + dataLength > internalBufferSize)
 				{
@@ -791,13 +783,13 @@ namespace Microsoft.Xna.Framework.Graphics
 		public int MaxMultiSampleCount { get; }
 		public IGLBackbuffer Backbuffer { get; private set; }
 
-		private Vulkan.PhysicalDevice physicalDevice;
-		private Vulkan.Device device;
-		private Vulkan.CommandPool commandPool;
-		private Vulkan.Queue graphicsQueue;
-		private Vulkan.Queue presentQueue;
-		private Vulkan.SurfaceKhr surface;
-		private Vulkan.CommandBuffer _commandBuffer;
+		private PhysicalDevice physicalDevice;
+		private Device device;
+		private CommandPool commandPool;
+		private Queue graphicsQueue;
+		private Queue presentQueue;
+		private SurfaceKhr surface;
+		private CommandBuffer _commandBuffer;
 		private PhysicalDeviceMemoryProperties _deviceMemoryProperties;
 
 		private Image[] images;
@@ -1016,10 +1008,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			graphicsQueue = device.GetQueue(graphicsQueueIndex, 0);
 			presentQueue = device.GetQueue(presentQueueIndex, 0);
-
-
-
-
 
 			commandPool = device.CreateCommandPool(new CommandPoolCreateInfo
 				{Flags = CommandPoolCreateFlags.ResetCommandBuffer});
@@ -2363,43 +2351,34 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public IGLBuffer GenVertexBuffer(bool dynamic, BufferUsage usage, int vertexCount, int vertexStride)
 		{
-			ulong size = (ulong)vertexCount * (ulong)vertexStride;
+			//ulong size = (ulong)vertexCount * (ulong)vertexStride;
 
 			//createBuffer(size, BufferUsageFlags.VertexBuffer, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out buffer, out bufferMemory);
-			createBuffer(size, BufferUsageFlags.VertexBuffer | BufferUsageFlags.TransferDst, MemoryPropertyFlags.DeviceLocal, out var buffer, out var bufferMemory);
+			//createBuffer(size, BufferUsageFlags.VertexBuffer | BufferUsageFlags.TransferDst, MemoryPropertyFlags.DeviceLocal, out var buffer, out var bufferMemory);
 
 			IntPtr bufferSize = (IntPtr) (vertexStride * vertexCount);
 
-			VulkanBuffer newbuf = new VulkanBuffer(device, physicalDevice.GetMemoryProperties(), buffer, bufferMemory, usage, bufferSize);
+			VulkanBuffer newbuf = new VulkanBuffer(this, BufferUsageFlags.VertexBuffer, usage, bufferSize);
 			Buffers.Add(newbuf);
 			return newbuf;
 		}
 
-		private void createBuffer(DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties,
-			out Buffer buffer, out DeviceMemory bufferMemory)
-		{
-			createBuffer(device, physicalDevice.GetMemoryProperties(), size, usage, properties, out buffer, out bufferMemory);
-		}
-
-		private static void createBuffer(Device device, PhysicalDeviceMemoryProperties memProperties, DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties, out Buffer buffer, out DeviceMemory bufferMemory)
+		private void createBuffer(DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties, out Buffer buffer, out DeviceMemory bufferMemory)
 		{
 			buffer = device.CreateBuffer(new BufferCreateInfo
 				{Size = size, Usage = usage, SharingMode = SharingMode.Exclusive});
 
 			var memRequirements = device.GetBufferMemoryRequirements(buffer);
 
-			bufferMemory = device.AllocateMemory(new MemoryAllocateInfo { AllocationSize = memRequirements.Size, MemoryTypeIndex = findMemoryType(memProperties, memRequirements.MemoryTypeBits, properties)});
+			bufferMemory = device.AllocateMemory(new MemoryAllocateInfo { AllocationSize = memRequirements.Size, MemoryTypeIndex = findMemoryType(memRequirements.MemoryTypeBits, properties)});
 
 			device.BindBufferMemory(buffer, bufferMemory, 0);
 		}
 
 		private uint findMemoryType(uint memoryTypeBits, MemoryPropertyFlags properties)
 		{
-			return findMemoryType(physicalDevice.GetMemoryProperties(), memoryTypeBits, properties);
-		}
+			var memProperties = physicalDevice.GetMemoryProperties();
 
-		private static uint findMemoryType(PhysicalDeviceMemoryProperties memProperties, uint memoryTypeBits, MemoryPropertyFlags properties)
-		{
 			for (uint i = 0; i < memProperties.MemoryTypeCount; ++i)
 			{
 				if (Convert.ToBoolean(memoryTypeBits & 1 << (int) i) &&
@@ -2425,6 +2404,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				dataLength,
 				options
 			);
+			/*
 			var vulkanBuffer = (buffer as VulkanBuffer);
 			var vertexBuffer = vulkanBuffer.Buffer;
 
@@ -2444,6 +2424,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			//var vulkanBuffer = (buffer as VulkanBuffer);
 			//vulkanBuffer.Buffer = vertexBuffer;
 			//vulkanBuffer.BufferMemory = vertexBufferMemory;
+			*/
 		}
 
 		public void GetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int startIndex, int elementCount,
@@ -2456,12 +2437,12 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			int elementSize = XNAToVK.IndexSize[(int) indexElementSize];
 
-			DeviceSize size = (indexCount * elementSize);
-			createBuffer(size, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer, MemoryPropertyFlags.DeviceLocal, out var buffer, out var bufferMemory);
+			//DeviceSize size = (indexCount * elementSize);
+			//createBuffer(size, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer, MemoryPropertyFlags.DeviceLocal, out var buffer, out var bufferMemory);
 
 			IntPtr bufferSize = (IntPtr)(indexCount * elementSize);
 
-			VulkanBuffer newbuf = new VulkanBuffer(device, physicalDevice.GetMemoryProperties(), buffer, bufferMemory, usage, bufferSize);
+			VulkanBuffer newbuf = new VulkanBuffer(this, BufferUsageFlags.IndexBuffer, usage, bufferSize);
 			Buffers.Add(newbuf);
 			return newbuf;
 		}
@@ -2570,6 +2551,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				dataLength,
 				options
 				);
+			/*
 			VulkanBuffer buf = buffer as VulkanBuffer;
 
 			// todo: is datalength already correct?
@@ -2590,6 +2572,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			device.DestroyBuffer(stagingBuffer);
 			device.FreeMemory(stagingBufferMemory);
+			*/
 		}
 
 		struct ShaderBundle
