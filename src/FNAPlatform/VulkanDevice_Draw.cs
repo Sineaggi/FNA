@@ -17,7 +17,7 @@ namespace Microsoft.Xna.Framework.Graphics
             );
 
             _commandBuffer.CmdBindIndexBuffer(indexBuffer.Buffer, 0, Vulkan.IndexType.Uint16); // todo: fix this hard-coded value
-            //_commandBuffer.CmdDrawIndexed((uint)XNAToVK.PrimitiveVerts(primitiveType, primitiveCount), 1, 0, 0, 0);
+            _commandBuffer.CmdDrawIndexed((uint)XNAToVK.PrimitiveVerts(primitiveType, primitiveCount), 1, 0, 0, 0);
         }
 
         public void DrawInstancedPrimitives(PrimitiveType primitiveType, int baseVertex, int minVertexIndex,
