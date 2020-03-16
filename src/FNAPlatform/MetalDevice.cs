@@ -1,6 +1,6 @@
 #region License
 /* FNA - XNA4 Reimplementation for Desktop Platforms
- * Copyright 2009-2019 Ethan Lee and the MonoGame Team
+ * Copyright 2009-2020 Ethan Lee and the MonoGame Team
  *
  * Released under the Microsoft Public License.
  * See LICENSE for details.
@@ -523,9 +523,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Private Metal State Variables
 
-		// FIXME: Remove this after SDL 2.0.12!
-		private IntPtr renderer;			// SDL_Renderer*
-
 		private IntPtr view;				// SDL_MetalView*
 		private IntPtr layer;				// CAMetalLayer*
 		private IntPtr device;				// MTLDevice*
@@ -697,27 +694,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#endregion
 
-		#region SDL Metal Imports
-
-		// FIXME: Remove this section after SDL 2.0.12 releases!
-
-		[DllImport("SDL2", CallingConvention = CallingConvention.Cdecl)]
-		public static extern IntPtr SDL_Metal_CreateView(IntPtr window);
-
-		[DllImport("SDL2", CallingConvention = CallingConvention.Cdecl)]
-		public static extern IntPtr SDL_Metal_DestroyView(IntPtr view);
-
-		public const string SDL_HINT_VIDEO_EXTERNAL_CONTEXT = "SDL_VIDEO_EXTERNAL_CONTEXT";
-
-		public static bool UsingSDL2_0_11()
-		{
-			SDL.SDL_version version;
-			SDL.SDL_GetVersion(out version);
-			return (version.major >= 2 && version.patch >= 11);
-		}
-
-		#endregion
-
 		#region Public Constructor
 
 		public MetalDevice(
@@ -727,27 +703,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			device = MTLCreateSystemDefaultDevice();
 			queue = mtlNewCommandQueue(device);
 
-			if (UsingSDL2_0_11())
-			{
-				// Create the Metal view
-				view = SDL_Metal_CreateView(
-					presentationParameters.DeviceWindowHandle
-				);
+			// Create the Metal view
+			view = SDL.SDL_Metal_CreateView(
+				presentationParameters.DeviceWindowHandle
+			);
 
-				// Get the layer from the view
-				layer = mtlGetLayer(view);
-			}
-			else
-			{
-				// Create a renderer and grab the layer from it.
-				SDL.SDL_SetHint(SDL.SDL_HINT_RENDER_DRIVER, "metal");
-				renderer = SDL.SDL_CreateRenderer(
-					presentationParameters.DeviceWindowHandle,
-					-1,
-					SDL.SDL_RendererFlags.SDL_RENDERER_ACCELERATED
-				);
-				layer = SDL.SDL_RenderGetMetalLayer(renderer);
-			}
+			// Get the layer from the view
+			layer = mtlGetLayer(view);
 
 			// Set up the CAMetalLayer
 			mtlSetLayerDevice(layer, device);
@@ -902,16 +864,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			// Dispose the backbuffer
 			(Backbuffer as MetalBackbuffer).Dispose();
 
-			if (UsingSDL2_0_11())
-			{
-				// Destroy the view
-				SDL_Metal_DestroyView(view);
-			}
-			else
-			{
-				// Destroy the renderer
-				SDL.SDL_DestroyRenderer(renderer);
-			}
+			// Destroy the view
+			SDL.SDL_Metal_DestroyView(view);
 		}
 
 		#endregion
@@ -4489,19 +4443,17 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public MetalBackbuffer(
 				MetalDevice device,
-				int width,
-				int height,
-				DepthFormat depthFormat,
-				int multiSampleCount
+				PresentationParameters presentationParameters
 			) {
-				Width = width;
-				Height = height;
-
 				mtlDevice = device;
-				DepthFormat = depthFormat;
-				MultiSampleCount = multiSampleCount;
-
 				PixelFormat = MTLPixelFormat.RGBA8Unorm;
+
+				/* Set these now to prevent a changed event in Create!
+				 * The rest will be set and don't have checks anywhere.
+				 * -flibit
+				 */
+				Width = presentationParameters.BackBufferWidth;
+				Height = presentationParameters.BackBufferHeight;
 			}
 
 			public void Dispose()
@@ -4519,9 +4471,14 @@ namespace Microsoft.Xna.Framework.Graphics
 			public void ResetFramebuffer(
 				PresentationParameters presentationParameters
 			) {
-				// Release the existing buffers
+				// Just destroy and recreate from scratch
 				Dispose();
+				CreateFramebuffer(presentationParameters);
+			}
 
+			public void CreateFramebuffer(
+				PresentationParameters presentationParameters
+			) {
 				// Update the backbuffer size
 				int newWidth = presentationParameters.BackBufferWidth;
 				int newHeight = presentationParameters.BackBufferHeight;
@@ -4629,13 +4586,12 @@ namespace Microsoft.Xna.Framework.Graphics
 		private void InitializeFauxBackbuffer(
 			PresentationParameters presentationParameters
 		) {
-			Backbuffer = new MetalBackbuffer(
+			MetalBackbuffer mtlBackbuffer = new MetalBackbuffer(
 				this,
-				presentationParameters.BackBufferWidth,
-				presentationParameters.BackBufferHeight,
-				presentationParameters.DepthStencilFormat,
-				presentationParameters.MultiSampleCount
+				presentationParameters
 			);
+			Backbuffer = mtlBackbuffer;
+			mtlBackbuffer.CreateFramebuffer(presentationParameters);
 
 			/* Create a combined vertex/index buffer
 			 * for rendering the faux-backbuffer.

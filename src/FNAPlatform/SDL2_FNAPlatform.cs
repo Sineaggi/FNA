@@ -205,6 +205,16 @@ namespace Microsoft.Xna.Framework
 				);
 			}
 
+			// By default, assume physical layout, since XNA games probably assume XInput
+			hint = SDL.SDL_GetHint(SDL.SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS);
+			if (String.IsNullOrEmpty(hint))
+			{
+				SDL.SDL_SetHint(
+					SDL.SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS,
+					"0"
+				);
+			}
+
 			SDL.SDL_SetHint(
 				SDL.SDL_HINT_ORIENTATIONS,
 				"LandscapeLeft LandscapeRight Portrait"
@@ -263,6 +273,14 @@ namespace Microsoft.Xna.Framework
 			{
 				return false;
 			}
+
+#if DEBUG
+			// Always enable the validation layer in debug mode
+			Environment.SetEnvironmentVariable(
+				"METAL_DEVICE_WRAPPER_TYPE",
+				"1"
+			);
+#endif
 
 			if (OSVersion.Equals("Mac OS X"))
 			{
@@ -445,10 +463,7 @@ namespace Microsoft.Xna.Framework
 			}
 			else if (metal = PrepareMTLAttributes())
 			{
-				if (MetalDevice.UsingSDL2_0_11())
-				{
-					SDL.SDL_SetHint(MetalDevice.SDL_HINT_VIDEO_EXTERNAL_CONTEXT, "1");
-				}
+				SDL.SDL_SetHint(SDL.SDL_HINT_VIDEO_EXTERNAL_CONTEXT, "1");
 
 				// Metal doesn't require a window flag
 				ActualGLDevice = METAL;
@@ -513,19 +528,7 @@ namespace Microsoft.Xna.Framework
 			}
 			else if (metal)
 			{
-				if (MetalDevice.UsingSDL2_0_11())
-				{
-					tempContext = MetalDevice.SDL_Metal_CreateView(window);
-				}
-				else
-				{
-					SDL.SDL_SetHint(SDL.SDL_HINT_RENDER_DRIVER, "metal");
-					tempContext = SDL.SDL_CreateRenderer(
-						window,
-						-1,
-						SDL.SDL_RendererFlags.SDL_RENDERER_ACCELERATED
-					);
-				}
+				tempContext = SDL.SDL_Metal_CreateView(window);
 			}
 
 			/* If high DPI is not found, unset the HIGHDPI var.
@@ -539,15 +542,7 @@ namespace Microsoft.Xna.Framework
 			}
 			else if (metal)
 			{
-				if (MetalDevice.UsingSDL2_0_11())
-				{
-					MetalDevice.GetDrawableSizeFromView(tempContext, out drawX, out drawY);
-				}
-				else
-				{
-					IntPtr layer = SDL.SDL_RenderGetMetalLayer(tempContext);
-					MetalDevice.GetDrawableSize(layer, out drawX, out drawY);
-				}
+				MetalDevice.GetDrawableSizeFromView(tempContext, out drawX, out drawY);
 			}
 			else if (opengl)
 			{
@@ -578,14 +573,7 @@ namespace Microsoft.Xna.Framework
 				}
 				else if (metal)
 				{
-					if (MetalDevice.UsingSDL2_0_11())
-					{
-						MetalDevice.SDL_Metal_DestroyView(tempContext);
-					}
-					else
-					{
-						SDL.SDL_DestroyRenderer(tempContext);
-					}
+					SDL.SDL_Metal_DestroyView(tempContext);
 				}
 			}
 
