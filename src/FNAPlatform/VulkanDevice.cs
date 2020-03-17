@@ -2266,23 +2266,36 @@ namespace Microsoft.Xna.Framework.Graphics
 			DeviceSize imageSize = dataLength; // todo: not hard-code
 
 			var image = tex.Image;
+			DeviceMemory imageMemory = null;
 
-			if (level > 0)
-			{
-				int xx = 0;
-				return;
-			}
-
-			/*
 			if (tex.IsPrivate)
 			{
+				throw new NotImplementedException("We don't handle render to texture yet.");
 				// We need an active command buffer
 				BeginFrame();
 
 				// Fetch a CPU-accessible texture
-				handle = FetchTransientTexture(tex);
+				//handle = FetchTransientTexture(tex);
+				image = device.CreateImage(new ImageCreateInfo
+				{
+					ImageType = ImageType.Image2D,
+					Extent = new Extent3D {
+						Depth = 1,
+						Height = (uint)height,
+						Width = (uint)width,
+					},
+					MipLevels = 1,
+					ArrayLayers = 1,
+					Format = XNAToVK.TextureFormat[(uint)format],
+					Tiling = ImageTiling.Optimal, // todo: linear or optimal?
+					InitialLayout = ImageLayout.Undefined,
+					Usage = ImageUsageFlags.TransferSrc,
+					Samples = SampleCountFlags.Count1,
+					SharingMode = SharingMode.Exclusive,
+				});
+
+				createImage(MemoryPropertyFlags.DeviceLocal, image, out imageMemory);
 			}
-			*/
 
 			// Write the data
 			/*
@@ -2302,9 +2315,9 @@ namespace Microsoft.Xna.Framework.Graphics
 			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
 			device.UnmapMemory(stagingBufferMemory);
 
-			transitionImageLayout(image, XNAToVK.TextureFormat[(int) format], ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
-			copyBufferToImage(stagingBuffer, image, width, height);
-			transitionImageLayout(image, XNAToVK.TextureFormat[(int) format], ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+			transitionImageLayout(image, (uint)level, XNAToVK.TextureFormat[(int) format], ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
+			copyBufferToImage(stagingBuffer, image, (uint)level, (uint)w, (uint)h);
+			transitionImageLayout(image, (uint)level, XNAToVK.TextureFormat[(int) format], ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
 
 			device.DestroyBuffer(stagingBuffer);
 			device.FreeMemory(stagingBufferMemory);
@@ -2659,7 +2672,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			endSingleTimeCommands(commandBuffer);
 		}
 
-		void transitionImageLayout(Image image, Format format, ImageLayout oldLayout, ImageLayout newLayout) {
+		void transitionImageLayout(Image image, uint level, Format format, ImageLayout oldLayout, ImageLayout newLayout) {
 			CommandBuffer commandBuffer = beginSingleTimeCommands();
 
 			var barrier = new ImageMemoryBarrier
@@ -2672,7 +2685,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				SubresourceRange = new ImageSubresourceRange
 				{
 					AspectMask = ImageAspectFlags.Color,
-					BaseMipLevel = 0,
+					BaseMipLevel = level,
 					LevelCount = 1,
 					BaseArrayLayer = 0,
 					LayerCount = 1,
@@ -2711,7 +2724,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			endSingleTimeCommands(commandBuffer);
 		}
 
-		void copyBufferToImage(Buffer buffer, Image image, uint width, uint height) {
+		void copyBufferToImage(Buffer buffer, Image image, uint level, uint width, uint height) {
 			CommandBuffer commandBuffer = beginSingleTimeCommands();
 
 			commandBuffer.CmdCopyBufferToImage(buffer, image, ImageLayout.TransferDstOptimal, new BufferImageCopy
@@ -2722,7 +2735,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				ImageSubresource = new ImageSubresourceLayers
 				{
 					AspectMask = ImageAspectFlags.Color,
-					MipLevel = 0,
+					MipLevel = level,
 					BaseArrayLayer = 0,
 					LayerCount = 1,
 				},
