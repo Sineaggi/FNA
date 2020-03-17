@@ -2075,7 +2075,11 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#endregion
 
-		public IGLTexture CreateTexture2D(SurfaceFormat format, int width, int height, int levelCount,
+		public IGLTexture CreateTexture2D(
+			SurfaceFormat format,
+			int width,
+			int height,
+			int levelCount,
 			bool isRenderTarget)
 		{
 			ImageUsageFlags usageFlags;
@@ -2135,7 +2139,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					{
 						AspectMask = ImageAspectFlags.Color,
 						BaseMipLevel = 0,
-						LevelCount = 1,
+						LevelCount = (uint)levelCount,
 						BaseArrayLayer = 0,
 						LayerCount = 1,
 					},
@@ -2154,7 +2158,9 @@ namespace Microsoft.Xna.Framework.Graphics
 					CompareEnable = false,
 					CompareOp = CompareOp.Always,
 					MipmapMode = SamplerMipmapMode.Linear, // todo
-					// todo: handle lods
+					MinLod = 0,
+					MaxLod = levelCount,
+					MipLodBias = 0,
 				}),
 			};
 		}
