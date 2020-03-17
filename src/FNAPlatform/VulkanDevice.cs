@@ -2114,6 +2114,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				SharingMode = SharingMode.Exclusive,
 			});
 
+			createImage(MemoryPropertyFlags.DeviceLocal, textureImage, out var textureImageMemory);
+
 			return new VulkanTexture(
 				device,
 				(uint) width,
@@ -2124,6 +2126,37 @@ namespace Microsoft.Xna.Framework.Graphics
 				)
 			{
 				Image = textureImage,
+				ImageMemory = textureImageMemory,
+				ImageView = device.CreateImageView(new ImageViewCreateInfo
+				{
+					Image = textureImage,
+					ViewType = ImageViewType.View2D,
+					Format = XNAToVK.TextureFormat[(uint) format],
+					SubresourceRange = new ImageSubresourceRange
+					{
+						AspectMask = ImageAspectFlags.Color,
+						BaseMipLevel = 0,
+						LevelCount = 1,
+						BaseArrayLayer = 0,
+						LayerCount = 1,
+					},
+				}),
+				Sampler = device.CreateSampler(new SamplerCreateInfo
+				{
+					MagFilter = Filter.Linear, // todo
+					MinFilter = Filter.Linear, // todo
+					AddressModeU = SamplerAddressMode.Repeat,
+					AddressModeV = SamplerAddressMode.Repeat,
+					AddressModeW = SamplerAddressMode.Repeat,
+					AnisotropyEnable = true,
+					MaxAnisotropy = 16,
+					BorderColor = BorderColor.IntOpaqueBlack,
+					UnnormalizedCoordinates = false,
+					CompareEnable = false,
+					CompareOp = CompareOp.Always,
+					MipmapMode = SamplerMipmapMode.Linear, // todo
+					// todo: handle lods
+				}),
 			};
 		}
 
@@ -2305,8 +2338,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
 			device.UnmapMemory(stagingBufferMemory);
 
-			createImage(MemoryPropertyFlags.DeviceLocal, tex.Image, out var textureImageMemory);
-
 			var fformat = XNAToVK.TextureFormat[(int) format];
 
 			transitionImageLayout(tex.Image, fformat, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
@@ -2317,46 +2348,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			device.FreeMemory(stagingBufferMemory);
 
 			//vulkanTexture.Image = textureImage;
-			tex.ImageMemory = textureImageMemory;
-
-			tex.ImageView = device.CreateImageView(new ImageViewCreateInfo
-			{
-				Image = tex.Image,
-				ViewType = ImageViewType.View2D,
-				Format = XNAToVK.TextureFormat[(uint) format],
-				SubresourceRange = new ImageSubresourceRange
-				{
-					AspectMask = ImageAspectFlags.Color,
-					BaseMipLevel = 0,
-					LevelCount = 1,
-					BaseArrayLayer = 0,
-					LayerCount = 1,
-				},
-			});
-
-			tex.Sampler = device.CreateSampler(new SamplerCreateInfo
-			{
-				MagFilter = Filter.Linear, // todo
-				MinFilter = Filter.Linear, // todo
-				AddressModeU = SamplerAddressMode.Repeat,
-				AddressModeV = SamplerAddressMode.Repeat,
-				AddressModeW = SamplerAddressMode.Repeat,
-				AnisotropyEnable = true,
-				MaxAnisotropy = 16,
-				BorderColor = BorderColor.IntOpaqueBlack,
-				UnnormalizedCoordinates = false,
-				CompareEnable = false,
-				CompareOp = CompareOp.Always,
-				MipmapMode = SamplerMipmapMode.Linear, // todo
-				// todo: handle lods
-			});
 
 			// Blit the temp texture to the actual texture
 			if (tex.IsPrivate)
 			{
 				//todo: should we end renderpass in vulkan?
 				// End the render pass
-				EndPass();
+				//EndPass();
 
 				//todo: blit?
 				// Blit!
