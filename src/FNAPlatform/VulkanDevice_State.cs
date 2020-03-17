@@ -455,8 +455,8 @@ namespace Microsoft.Xna.Framework.Graphics
 		private Dictionary<StateHash, IntPtr> SamplerStateCache =
 			new Dictionary<StateHash, IntPtr>();
 
-		//private List<MetalTexture> transientTextures =
-	//		new List<MetalTexture>();
+		private List<VulkanTexture> transientTextures =
+			new List<VulkanTexture>();
 
 		#endregion
 
@@ -814,34 +814,38 @@ namespace Microsoft.Xna.Framework.Graphics
 			return descriptor;
 		}
 
-		#if false
-		private IntPtr FetchTransientTexture(MetalTexture fromTexture)
+		private IntPtr FetchTransientTexture(VulkanTexture fromTexture)
 		{
 			// Can we just reuse an existing texture?
 			for (int i = 0; i < transientTextures.Count; i += 1)
 			{
-				MetalTexture tex = transientTextures[i];
+				VulkanTexture tex = transientTextures[i];
 				if (tex.Format == fromTexture.Format &&
 				    tex.Width == fromTexture.Width &&
 				    tex.Height == fromTexture.Height &&
 				    tex.HasMipmaps == fromTexture.HasMipmaps)
 				{
+					//todo
+					return IntPtr.Zero;
+					/*
 					mtlSetPurgeableState(
 						tex.Handle,
 						MTLPurgeableState.NonVolatile
 					);
 					return tex.Handle;
+					*/
 				}
 			}
 
 			// We have to make a new texture...
+			/*
 			IntPtr texDesc = mtlMakeTexture2DDescriptor(
-				XNAToMTL.TextureFormat[(int) fromTexture.Format],
+				XNAToVK.TextureFormat[(int) fromTexture.Format],
 				fromTexture.Width,
 				fromTexture.Height,
 				fromTexture.HasMipmaps
 			);
-			MetalTexture ret = new MetalTexture(
+			VulkanTexture ret = new VulkanTexture(
 				mtlNewTextureWithDescriptor(device, texDesc),
 				fromTexture.Width,
 				fromTexture.Height,
@@ -851,8 +855,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			);
 			transientTextures.Add(ret);
 			return ret.Handle;
+			*/
+			//todo
+			return IntPtr.Zero;
 		}
-#endif
 
 		#endregion
 	}

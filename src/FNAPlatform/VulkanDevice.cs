@@ -663,6 +663,28 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 				throw new NotSupportedException();
 			}
+
+			public static SampleCountFlags SampleCountFlags(int sampleCount)
+			{
+				switch (sampleCount)
+				{
+					case 64:
+						return Vulkan.SampleCountFlags.Count64;
+					case 32:
+						return Vulkan.SampleCountFlags.Count32;
+					case 16:
+						return Vulkan.SampleCountFlags.Count16;
+					case 8:
+						return Vulkan.SampleCountFlags.Count8;
+					case 4:
+						return Vulkan.SampleCountFlags.Count4;
+					case 2:
+						return Vulkan.SampleCountFlags.Count2;
+					case 1:
+						return Vulkan.SampleCountFlags.Count1;
+				}
+				throw new NotSupportedException();
+			}
 		}
 
 		#endregion
@@ -1055,6 +1077,17 @@ namespace Microsoft.Xna.Framework.Graphics
 			FNALoggerEXT.LogInfo("IGLDevice: VulkanDevice");
 			FNALoggerEXT.LogInfo("Device Name: " + physicalDevice.GetProperties().DeviceName);
 			FNALoggerEXT.LogInfo("MojoShader Profile: spirv");
+
+			// Add fallbacks for missing texture formats
+			if (true)
+			{
+				XNAToVK.TextureFormat[(int) SurfaceFormat.Bgr565]
+					= Format.B8G8R8A8Unorm;
+				XNAToVK.TextureFormat[(int) SurfaceFormat.Bgra5551]
+					= Format.B8G8R8A8Unorm;
+				XNAToVK.TextureFormat[(int) SurfaceFormat.Bgra4444]
+					= Format.B8G8R8A8Unorm;
+			}
 
 			// Initialize texture and sampler collections
 			Textures = new VulkanTexture[MaxTextureSlots];
@@ -1636,12 +1669,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			List<WriteDescriptorSet> writeDescriptorSets = new List<WriteDescriptorSet>();
 			writeDescriptorSets.Add(writeDescriptorSet);
 
-			if (texture.Sampler != null) {
+			if (_texture.Sampler != null) {
 				var imageInfo = new DescriptorImageInfo
 				{
 					ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
-					ImageView = texture.ImageView,
-					Sampler = texture.Sampler,
+					ImageView = _texture.ImageView,
+					Sampler = _texture.Sampler,
 				};
 
 				var imageWriteDescriptorSet = new WriteDescriptorSet
@@ -2184,7 +2217,14 @@ namespace Microsoft.Xna.Framework.Graphics
 			device.FreeCommandBuffer(commandPool, commandBuffer);
 		}
 
-		public void SetTextureData2D(IGLTexture texture, SurfaceFormat format, int x, int y, int w, int h, int level,
+		public void SetTextureData2D(
+			IGLTexture texture,
+			SurfaceFormat format,
+			int x,
+			int y,
+			int w,
+			int h,
+			int level,
 			IntPtr data,
 			int dataLength)
 		{
@@ -2193,10 +2233,69 @@ namespace Microsoft.Xna.Framework.Graphics
 			var height = tex.Height;
 			DeviceSize imageSize = dataLength; // todo: not hard-code
 
+			if (level > 0)
+			{
+				int xx = 0;
+				return;
+			}
+
+			/*
 			if (tex.IsPrivate)
 			{
-				throw new Exception("This is not yet supported.");
+				// We need an active command buffer
+				BeginFrame();
+
+				// Fetch a CPU-accessible texture
+				handle = FetchTransientTexture(tex);
 			}
+			*/
+
+			// Write the data
+			/*
+			mtlReplaceRegion(
+				handle,
+				new MTLRegion(origin, size),
+				level,
+				0,
+				data,
+				BytesPerRow(w, format),
+				0
+			);
+			*/
+
+			// Blit the temp texture to the actual texture
+			/*
+			if (tex.IsPrivate)
+			{
+				// End the render pass
+				EndPass();
+
+				// Blit!
+				IntPtr blit = mtlMakeBlitCommandEncoder(commandBuffer);
+				mtlBlitTextureToTexture(
+					blit,
+					handle,
+					0,
+					level,
+					origin,
+					size,
+					tex.Handle,
+					0,
+					level,
+					origin
+				);
+
+				// Submit the blit command to the GPU and wait...
+				mtlEndEncoding(blit);
+				Stall();
+
+				// We're done with the temp texture
+				mtlSetPurgeableState(
+					handle,
+					MTLPurgeableState.Empty
+				);
+			}
+			*/
 
 			createBuffer(imageSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
 
@@ -2251,6 +2350,45 @@ namespace Microsoft.Xna.Framework.Graphics
 				MipmapMode = SamplerMipmapMode.Linear, // todo
 				// todo: handle lods
 			});
+
+			// Blit the temp texture to the actual texture
+			if (tex.IsPrivate)
+			{
+				//todo: should we end renderpass in vulkan?
+				// End the render pass
+				EndPass();
+
+				//todo: blit?
+				// Blit!
+				//_commandBuffer.CmdBlitImage();
+				/*
+				IntPtr blit = mtlMakeBlitCommandEncoder(commandBuffer);
+				mtlBlitTextureToTexture(
+					blit,
+					handle,
+					0,
+					level,
+					origin,
+					size,
+					tex.Handle,
+					0,
+					level,
+					origin
+				);
+				*/
+
+				//todo: stall
+				// Submit the blit command to the GPU and wait...
+				//mtlEndEncoding(blit);
+				//Stall();
+
+				//todo: delete temp texture
+				// We're done with the temp texture
+				//mtlSetPurgeableState(
+			//		handle,
+			//		MTLPurgeableState.Empty
+			//	);
+			}
 		}
 		void createImage(MemoryPropertyFlags properties, Image image, out DeviceMemory imageMemory) {
 			var memRequirements = device.GetImageMemoryRequirements(image);
@@ -2336,12 +2474,77 @@ namespace Microsoft.Xna.Framework.Graphics
 		public IGLRenderbuffer GenRenderbuffer(int width, int height, SurfaceFormat format, int multiSampleCount,
 			IGLTexture texture)
 		{
+			Format pixelFormat = XNAToVK.TextureFormat[(int) format];
+			int sampleCount = GetCompatibleSampleCount(multiSampleCount);
+
 			throw new NotImplementedException();
 		}
 
 		public IGLRenderbuffer GenRenderbuffer(int width, int height, DepthFormat format, int multiSampleCount)
 		{
-			throw new NotImplementedException();
+			Format pixelFormat = XNAToVK.TextureFormat[(int) format];
+			int sampleCount = GetCompatibleSampleCount(multiSampleCount);
+
+			// Generate a depth texture
+			var colorImage = device.CreateImage(new ImageCreateInfo
+			{
+				Format = pixelFormat,
+				ImageType = ImageType.Image2D,
+				Extent = new Extent3D
+				{
+					Depth = 1,
+					Height = (uint)height,
+					Width = (uint)width,
+				},
+				MipLevels = 1,
+				ArrayLayers = 1,
+				Samples = sampleCount == 0 ? SampleCountFlags.Count1 : XNAToVK.SampleCountFlags(sampleCount),
+				Tiling = ImageTiling.Optimal,
+				Usage = ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled
+			});
+
+			/*
+			IntPtr desc = mtlMakeTexture2DDescriptor(
+				pixelFormat,
+				width,
+				height,
+				false
+			);
+			mtlSetStorageMode(
+				desc,
+				MTLStorageMode.Private
+			);
+			mtlSetTextureUsage(
+				desc,
+				MTLTextureUsage.RenderTarget
+			);
+			*/
+
+			// We're done!
+			return new VulkanRenderbuffer(
+				IntPtr.Zero,
+				pixelFormat,
+				sampleCount,
+				IntPtr.Zero
+			);
+		}
+
+		private int GetCompatibleSampleCount(int sampleCount)
+		{
+			/* If the device does not support the requested
+			 * multisample count, halve it until we find a
+			 * value that is supported.
+			 */
+			var physicalDeviceProperties = physicalDevice.GetProperties();
+			var counts = physicalDeviceProperties.Limits.FramebufferColorSampleCounts &
+			             physicalDeviceProperties.Limits.FramebufferDepthSampleCounts;
+			while (sampleCount > 0 && counts.HasFlag(XNAToVK.SampleCountFlags(sampleCount)))
+			{
+				sampleCount = MathHelper.ClosestMSAAPower(
+					sampleCount / 2
+				);
+			}
+			return sampleCount;
 		}
 
 		public void AddDisposeRenderbuffer(IGLRenderbuffer renderbuffer)
@@ -2985,7 +3188,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Resource Binding Method
 
-		VulkanTexture texture = null;
+		// todo: delete this when refactoring
+		VulkanTexture _texture = null;
 
 		private void BindResources()
 		{
@@ -3192,7 +3396,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						i
 					);
 					*/
-					texture = Textures[i];
+					_texture = Textures[i];
 					int textureBindingOffset = 4;
 
 					textureNeedsUpdate[i] = false;
