@@ -2082,7 +2082,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			if (!isRenderTarget)
 			{
 				usageFlags = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled;
-
 			}
 			else
 			{
@@ -2266,6 +2265,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			var height = tex.Height;
 			DeviceSize imageSize = dataLength; // todo: not hard-code
 
+			var image = tex.Image;
+
 			if (level > 0)
 			{
 				int xx = 0;
@@ -2295,6 +2296,18 @@ namespace Microsoft.Xna.Framework.Graphics
 				0
 			);
 			*/
+			createBuffer(dataLength, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
+
+			var dst = device.MapMemory(stagingBufferMemory, 0, imageSize, 0);
+			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
+			device.UnmapMemory(stagingBufferMemory);
+
+			transitionImageLayout(image, XNAToVK.TextureFormat[(int) format], ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
+			copyBufferToImage(stagingBuffer, image, width, height);
+			transitionImageLayout(image, XNAToVK.TextureFormat[(int) format], ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+
+			device.DestroyBuffer(stagingBuffer);
+			device.FreeMemory(stagingBufferMemory);
 
 			// Blit the temp texture to the actual texture
 			/*
@@ -2329,23 +2342,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				);
 			}
 			*/
-
-			createBuffer(imageSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
-
-			Console.WriteLine($"Are they the same? {imageSize} == {dataLength}");
-
-			var dst = device.MapMemory(stagingBufferMemory, 0, imageSize, 0);
-			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
-			device.UnmapMemory(stagingBufferMemory);
-
-			var fformat = XNAToVK.TextureFormat[(int) format];
-
-			transitionImageLayout(tex.Image, fformat, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
-			copyBufferToImage(stagingBuffer, tex.Image, width, height);
-			transitionImageLayout(tex.Image, fformat, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
-
-			device.DestroyBuffer(stagingBuffer);
-			device.FreeMemory(stagingBufferMemory);
 
 			//vulkanTexture.Image = textureImage;
 
@@ -2398,6 +2394,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			device.BindImageMemory(image, imageMemory, 0);
 		}
 
+		//todo: delete this or salvage
 		void createImage(uint width, uint height, Format format, ImageTiling tiling, ImageUsageFlags usage, MemoryPropertyFlags properties, out Image image, out DeviceMemory imageMemory) {
 
 			image = device.CreateImage(new ImageCreateInfo
