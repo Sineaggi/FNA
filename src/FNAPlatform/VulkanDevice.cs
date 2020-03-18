@@ -36,35 +36,15 @@ namespace Microsoft.Xna.Framework.Graphics
 	{
 		private class VulkanTexture : IGLTexture
 		{
-			public uint Handle
-			{
-				get;
-				private set;
-			}
+			public uint Handle { get; private set; }
 
-			public bool HasMipmaps
-			{
-				get;
-				private set;
-			}
+			public bool HasMipmaps { get; private set; }
 
-			public uint Width
-			{
-				get;
-				private set;
-			}
+			public uint Width { get; private set; }
 
-			public uint Height
-			{
-				get;
-				private set;
-			}
+			public uint Height { get; private set; }
 
-			public bool IsPrivate
-			{
-				get;
-				private set;
-			}
+			public bool IsPrivate { get; private set; }
 
 			public SurfaceFormat Format;
 			public TextureAddressMode WrapS;
@@ -140,36 +120,21 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private class VulkanRenderbuffer : IGLRenderbuffer
 		{
-			public IntPtr Handle
-			{
-				get;
-				private set;
-			}
+			public IntPtr Handle { get; private set; }
 
-			public IntPtr MultiSampleHandle
-			{
-				get;
-				private set;
-			}
+			public IntPtr MultiSampleHandle { get; private set; }
 
-			public Format PixelFormat
-			{
-				get;
-				private set;
-			}
+			public Format PixelFormat { get; private set; }
 
-			public int MultiSampleCount
-			{
-				get;
-				private set;
-			}
+			public int MultiSampleCount { get; private set; }
 
 			public VulkanRenderbuffer(
 				IntPtr handle,
 				Format pixelFormat,
 				int multiSampleCount,
 				IntPtr multiSampleHandle
-			) {
+			)
+			{
 				Handle = handle;
 				PixelFormat = pixelFormat;
 				MultiSampleCount = multiSampleCount;
@@ -204,11 +169,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private class VulkanBuffer : IGLBuffer
 		{
-			public IntPtr Contents
-			{
-				get;
-				private set;
-			}
+			public IntPtr Contents { get; private set; }
 
 			public Buffer Buffer { get; private set; }
 
@@ -224,11 +185,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			private BufferUsage usage;
 			private bool boundThisFrame;
 
-			public int InternalOffset
-			{
-				get;
-				private set;
-			}
+			public int InternalOffset { get; private set; }
 
 			public void Bound()
 			{
@@ -276,7 +233,9 @@ namespace Microsoft.Xna.Framework.Graphics
 				// todo: consult FNA usage flags.
 				// todo: use more efficient texture access? make host coherent buffers only for user data
 				// otherwise, shuffle data with copy buffer calls.
-				device.createBuffer(internalBufferSize, usageFlags, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var createdBuffer, out var createdBufferMemory);
+				device.createBuffer(internalBufferSize, usageFlags,
+					MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var createdBuffer,
+					out var createdBufferMemory);
 				Buffer = createdBuffer;
 				BufferMemory = createdBufferMemory;
 				Contents = device.device.MapMemory(BufferMemory, 0, internalBufferSize, 0);
@@ -405,112 +364,112 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private ClearColorValue _clearColorValue = new ClearColorValue
 		{
-			Float32 = new []{0.0f, 0.0f, 0.0f, 1.0f}
+			Float32 = new[] {0.0f, 0.0f, 0.0f, 1.0f}
 		};
 
 		#endregion
 
-				#region XNA->GL Enum Conversion Class
+		#region XNA->GL Enum Conversion Class
 
 		private static class XNAToVK
 		{
 			public static readonly Format[] TextureFormat = new Format[]
 			{
-				Format.R8G8B8A8Unorm,	// SurfaceFormat.Color
-				Format.B5G6R5UnormPack16,	// SurfaceFormat.Bgr565
-				Format.B5G5R5A1UnormPack16,	// SurfaceFormat.Bgra5551
-				Format.B4G4R4A4UnormPack16,	// SurfaceFormat.Bgra4444
-				Format.Bc1RgbaUnormBlock,	// SurfaceFormat.Dxt1
-				Format.Bc2UnormBlock,	// SurfaceFormat.Dxt3
-				Format.Bc3UnormBlock,	// SurfaceFormat.Dxt5
-				Format.R8G8Snorm,	// SurfaceFormat.NormalizedByte2
-				Format.Undefined,	// SurfaceFormat.NormalizedByte4
+				Format.R8G8B8A8Unorm, // SurfaceFormat.Color
+				Format.B5G6R5UnormPack16, // SurfaceFormat.Bgr565
+				Format.B5G5R5A1UnormPack16, // SurfaceFormat.Bgra5551
+				Format.B4G4R4A4UnormPack16, // SurfaceFormat.Bgra4444
+				Format.Bc1RgbaUnormBlock, // SurfaceFormat.Dxt1
+				Format.Bc2UnormBlock, // SurfaceFormat.Dxt3
+				Format.Bc3UnormBlock, // SurfaceFormat.Dxt5
+				Format.R8G8Snorm, // SurfaceFormat.NormalizedByte2
+				Format.Undefined, // SurfaceFormat.NormalizedByte4
 				Format.A2R10G10B10UnormPack32, // todo: unsupported format?	// SurfaceFormat.Rgba1010102
-				Format.R16G16Unorm,	// SurfaceFormat.Rg32
-				Format.R16G16B16A16Unorm,	// SurfaceFormat.Rgba64
-				Format.R8Unorm,		// SurfaceFormat.Alpha8
-				Format.R32Sfloat,	// SurfaceFormat.Single
-				Format.R32G32Sfloat,	// SurfaceFormat.Vector2
-				Format.R32G32B32A32Sfloat,	// SurfaceFormat.Vector4
-				Format.R16Sfloat,	// SurfaceFormat.HalfSingle
-				Format.R16G16Sfloat,	// SurfaceFormat.HalfVector2
-				Format.R16G16B16A16Sfloat,	// SurfaceFormat.HalfVector4
-				Format.R16G16B16A16Sfloat,	// SurfaceFormat.HdrBlendable
-				Format.B8G8R8A8Unorm,	// SurfaceFormat.ColorBgraEXT
+				Format.R16G16Unorm, // SurfaceFormat.Rg32
+				Format.R16G16B16A16Unorm, // SurfaceFormat.Rgba64
+				Format.R8Unorm, // SurfaceFormat.Alpha8
+				Format.R32Sfloat, // SurfaceFormat.Single
+				Format.R32G32Sfloat, // SurfaceFormat.Vector2
+				Format.R32G32B32A32Sfloat, // SurfaceFormat.Vector4
+				Format.R16Sfloat, // SurfaceFormat.HalfSingle
+				Format.R16G16Sfloat, // SurfaceFormat.HalfVector2
+				Format.R16G16B16A16Sfloat, // SurfaceFormat.HalfVector4
+				Format.R16G16B16A16Sfloat, // SurfaceFormat.HdrBlendable
+				Format.B8G8R8A8Unorm, // SurfaceFormat.ColorBgraEXT
 			};
 
 			public static readonly MojoShader.MOJOSHADER_usage[] VertexAttribUsage = new MojoShader.MOJOSHADER_usage[]
 			{
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_POSITION,		// VertexElementUsage.Position
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_COLOR,		// VertexElementUsage.Color
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TEXCOORD,		// VertexElementUsage.TextureCoordinate
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_NORMAL,		// VertexElementUsage.Normal
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BINORMAL,		// VertexElementUsage.Binormal
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TANGENT,		// VertexElementUsage.Tangent
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BLENDINDICES,	// VertexElementUsage.BlendIndices
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BLENDWEIGHT,	// VertexElementUsage.BlendWeight
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_DEPTH,		// VertexElementUsage.Depth
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_FOG,		// VertexElementUsage.Fog
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_POINTSIZE,		// VertexElementUsage.PointSize
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_SAMPLE,		// VertexElementUsage.Sample
-				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TESSFACTOR		// VertexElementUsage.TessellateFactor
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_POSITION, // VertexElementUsage.Position
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_COLOR, // VertexElementUsage.Color
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TEXCOORD, // VertexElementUsage.TextureCoordinate
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_NORMAL, // VertexElementUsage.Normal
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BINORMAL, // VertexElementUsage.Binormal
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TANGENT, // VertexElementUsage.Tangent
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BLENDINDICES, // VertexElementUsage.BlendIndices
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_BLENDWEIGHT, // VertexElementUsage.BlendWeight
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_DEPTH, // VertexElementUsage.Depth
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_FOG, // VertexElementUsage.Fog
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_POINTSIZE, // VertexElementUsage.PointSize
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_SAMPLE, // VertexElementUsage.Sample
+				MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TESSFACTOR // VertexElementUsage.TessellateFactor
 			};
 
 			// "A bit confusingly, the formats are specified using the same enumeration as color formats"
 			// source: https://vulkan-tutorial.com/Vertex_buffers/Vertex_input_description
 			public static readonly Format[] VertexAttribType = new Format[]
 			{
-				Format.R32Sfloat,			// VertexElementFormat.Single
-				Format.R32G32Sfloat,			// VertexElementFormat.Vector2
-				Format.R32G32B32Sfloat,			// VertexElementFormat.Vector3
-				Format.R32G32B32A32Sfloat,			// VertexElementFormat.Vector4
-				Format.R8G8B8A8Unorm,	// VertexElementFormat.Color
-				Format.R8G8B8A8Uint,			// VertexElementFormat.Byte4
-				Format.R16G16Sint,			// VertexElementFormat.Short2
-				Format.R16G16B16A16Sint,			// VertexElementFormat.Short4
-				Format.R16G16Snorm,	// VertexElementFormat.NormalizedShort2
-				Format.R16G16B16A16Snorm,	// VertexElementFormat.NormalizedShort4
-				Format.R16G16Sfloat,			// VertexElementFormat.HalfVector2
-				Format.R16G16B16A16Sfloat,			// VertexElementFormat.HalfVector4
+				Format.R32Sfloat, // VertexElementFormat.Single
+				Format.R32G32Sfloat, // VertexElementFormat.Vector2
+				Format.R32G32B32Sfloat, // VertexElementFormat.Vector3
+				Format.R32G32B32A32Sfloat, // VertexElementFormat.Vector4
+				Format.R8G8B8A8Unorm, // VertexElementFormat.Color
+				Format.R8G8B8A8Uint, // VertexElementFormat.Byte4
+				Format.R16G16Sint, // VertexElementFormat.Short2
+				Format.R16G16B16A16Sint, // VertexElementFormat.Short4
+				Format.R16G16Snorm, // VertexElementFormat.NormalizedShort2
+				Format.R16G16B16A16Snorm, // VertexElementFormat.NormalizedShort4
+				Format.R16G16Sfloat, // VertexElementFormat.HalfVector2
+				Format.R16G16B16A16Sfloat, // VertexElementFormat.HalfVector4
 			};
 
 			public static readonly IndexType[] IndexType = new IndexType[]
 			{
-				Vulkan.IndexType.Uint16,	// IndexElementSize.SixteenBits
-				Vulkan.IndexType.Uint32,	// IndexElementSize.ThirtyTwoBits
+				Vulkan.IndexType.Uint16, // IndexElementSize.SixteenBits
+				Vulkan.IndexType.Uint32, // IndexElementSize.ThirtyTwoBits
 			};
 
 			public static readonly int[] IndexSize = new int[]
 			{
-				2,	// IndexElementSize.SixteenBits
-				4	// IndexElementSize.ThirtyTwoBits
+				2, // IndexElementSize.SixteenBits
+				4 // IndexElementSize.ThirtyTwoBits
 			};
 
 			public static readonly BlendFactor[] BlendMode = new BlendFactor[]
 			{
 
-				Vulkan.BlendFactor.One,			// Blend.One
-				Vulkan.BlendFactor.Zero,			// Blend.Zero
-				Vulkan.BlendFactor.SrcColor,		// Blend.SourceColor
-				Vulkan.BlendFactor.OneMinusDstColor,	// Blend.InverseSourceColor
-				Vulkan.BlendFactor.SrcAlpha,		// Blend.SourceAlpha
-				Vulkan.BlendFactor.OneMinusSrcAlpha,	// Blend.InverseSourceAlpha
-				Vulkan.BlendFactor.DstColor,	// Blend.DestinationColor
-				Vulkan.BlendFactor.OneMinusDstColor,// Blend.InverseDestinationColor
-				Vulkan.BlendFactor.DstAlpha,	// Blend.DestinationAlpha
-				Vulkan.BlendFactor.OneMinusDstAlpha,// Blend.InverseDestinationAlpha
-				Vulkan.BlendFactor.ConstantColor,		// Blend.BlendFactor
-				Vulkan.BlendFactor.OneMinusConstantColor,	// Blend.InverseBlendFactor
-				Vulkan.BlendFactor.SrcAlphaSaturate,	// Blend.SourceAlphaSaturation
+				Vulkan.BlendFactor.One, // Blend.One
+				Vulkan.BlendFactor.Zero, // Blend.Zero
+				Vulkan.BlendFactor.SrcColor, // Blend.SourceColor
+				Vulkan.BlendFactor.OneMinusDstColor, // Blend.InverseSourceColor
+				Vulkan.BlendFactor.SrcAlpha, // Blend.SourceAlpha
+				Vulkan.BlendFactor.OneMinusSrcAlpha, // Blend.InverseSourceAlpha
+				Vulkan.BlendFactor.DstColor, // Blend.DestinationColor
+				Vulkan.BlendFactor.OneMinusDstColor, // Blend.InverseDestinationColor
+				Vulkan.BlendFactor.DstAlpha, // Blend.DestinationAlpha
+				Vulkan.BlendFactor.OneMinusDstAlpha, // Blend.InverseDestinationAlpha
+				Vulkan.BlendFactor.ConstantColor, // Blend.BlendFactor
+				Vulkan.BlendFactor.OneMinusConstantColor, // Blend.InverseBlendFactor
+				Vulkan.BlendFactor.SrcAlphaSaturate, // Blend.SourceAlphaSaturation
 			};
 
 			public static readonly BlendOp[] BlendOperation = new BlendOp[]
 			{
-				BlendOp.Add,			// BlendFunction.Add
-				BlendOp.Subtract,		// BlendFunction.Subtract
-				BlendOp.ReverseSubtract,	// BlendFunction.ReverseSubtract
-				BlendOp.Max,			// BlendFunction.Max
-				BlendOp.Min,			// BlendFunction.Min
+				BlendOp.Add, // BlendFunction.Add
+				BlendOp.Subtract, // BlendFunction.Subtract
+				BlendOp.ReverseSubtract, // BlendFunction.ReverseSubtract
+				BlendOp.Max, // BlendFunction.Max
+				BlendOp.Min, // BlendFunction.Min
 			};
 
 			public static int ColorWriteMask(ColorWriteChannels channels)
@@ -519,6 +478,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					return 0x0;
 				}
+
 				if (channels == ColorWriteChannels.All)
 				{
 					return 0xf;
@@ -529,121 +489,125 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					ret |= (0x1 << 3);
 				}
+
 				if ((channels & ColorWriteChannels.Green) != 0)
 				{
 					ret |= (0x1 << 2);
 				}
+
 				if ((channels & ColorWriteChannels.Blue) != 0)
 				{
 					ret |= (0x1 << 1);
 				}
+
 				if ((channels & ColorWriteChannels.Alpha) != 0)
 				{
 					ret |= (0x1 << 0);
 				}
+
 				return ret;
 			}
 
 			public static readonly CompareOp[] CompareFunc = new CompareOp[]
 			{
-				CompareOp.Always,	// CompareFunction.Always
-				CompareOp.Never,	// CompareFunction.Never
-				CompareOp.Less,	// CompareFunction.Less
-				CompareOp.LessOrEqual,	// CompareFunction.LessEqual
-				CompareOp.Equal,	// CompareFunction.Equal
-				CompareOp.GreaterOrEqual,// CompareFunction.GreaterEqual
-				CompareOp.Greater,	// CompareFunction.Greater
-				CompareOp.NotEqual	// CompareFunction.NotEqual
+				CompareOp.Always, // CompareFunction.Always
+				CompareOp.Never, // CompareFunction.Never
+				CompareOp.Less, // CompareFunction.Less
+				CompareOp.LessOrEqual, // CompareFunction.LessEqual
+				CompareOp.Equal, // CompareFunction.Equal
+				CompareOp.GreaterOrEqual, // CompareFunction.GreaterEqual
+				CompareOp.Greater, // CompareFunction.Greater
+				CompareOp.NotEqual // CompareFunction.NotEqual
 			};
 
 
 
 			public static readonly StencilOp[] StencilOp = new StencilOp[]
 			{
-				Vulkan.StencilOp.Keep,		// StencilOperation.Keep
-				Vulkan.StencilOp.Zero,		// StencilOperation.Zero
-				Vulkan.StencilOp.Replace,		// StencilOperation.Replace
-				Vulkan.StencilOp.IncrementAndWrap,	// StencilOperation.Increment
-				Vulkan.StencilOp.DecrementAndWrap,	// StencilOperation.Decrement
-				Vulkan.StencilOp.IncrementAndClamp,	// StencilOperation.IncrementSaturation
-				Vulkan.StencilOp.DecrementAndClamp,	// StencilOperation.DecrementSaturation
-				Vulkan.StencilOp.Invert		// StencilOperation.Invert
+				Vulkan.StencilOp.Keep, // StencilOperation.Keep
+				Vulkan.StencilOp.Zero, // StencilOperation.Zero
+				Vulkan.StencilOp.Replace, // StencilOperation.Replace
+				Vulkan.StencilOp.IncrementAndWrap, // StencilOperation.Increment
+				Vulkan.StencilOp.DecrementAndWrap, // StencilOperation.Decrement
+				Vulkan.StencilOp.IncrementAndClamp, // StencilOperation.IncrementSaturation
+				Vulkan.StencilOp.DecrementAndClamp, // StencilOperation.DecrementSaturation
+				Vulkan.StencilOp.Invert // StencilOperation.Invert
 			};
 
 			public static readonly PolygonMode[] FillMode = new Vulkan.PolygonMode[]
 			{
-				PolygonMode.Fill,	// FillMode.Solid
-				PolygonMode.Line	// FillMode.WireFrame
+				PolygonMode.Fill, // FillMode.Solid
+				PolygonMode.Line // FillMode.WireFrame
 			};
 
 			public static readonly float[] DepthBiasScale = new float[]
 			{
-				0.0f,				// DepthFormat.None
-				(float) ((1 << 16) - 1),	// DepthFormat.Depth16
-				(float) ((1 << 24) - 1),	// DepthFormat.Depth24
-				(float) ((1 << 24) - 1)		// DepthFormat.Depth24Stencil8
+				0.0f, // DepthFormat.None
+				(float) ((1 << 16) - 1), // DepthFormat.Depth16
+				(float) ((1 << 24) - 1), // DepthFormat.Depth24
+				(float) ((1 << 24) - 1) // DepthFormat.Depth24Stencil8
 			};
 
 			public static readonly CullModeFlags[] CullingEnabled = new CullModeFlags[]
 			{
-				CullModeFlags.None,	// CullMode.None
-				CullModeFlags.Front,	// CullMode.CullClockwiseFace
-				CullModeFlags.Back	// CullMode.CullCounterClockwiseFace
+				CullModeFlags.None, // CullMode.None
+				CullModeFlags.Front, // CullMode.CullClockwiseFace
+				CullModeFlags.Back // CullMode.CullCounterClockwiseFace
 			};
 
 			public static readonly SamplerAddressMode[] Wrap = new SamplerAddressMode[]
 			{
-				SamplerAddressMode.Repeat,		// TextureAddressMode.Wrap
-				SamplerAddressMode.ClampToEdge,	// TextureAddressMode.Clamp
-				SamplerAddressMode.MirroredRepeat	// TextureAddressMode.Mirror
+				SamplerAddressMode.Repeat, // TextureAddressMode.Wrap
+				SamplerAddressMode.ClampToEdge, // TextureAddressMode.Clamp
+				SamplerAddressMode.MirroredRepeat // TextureAddressMode.Mirror
 			};
 
 			public static readonly Filter[] MagFilter = new Filter[]
 			{
-				Filter.Linear,	// TextureFilter.Linear
-				Filter.Nearest,	// TextureFilter.Point
-				Filter.Linear,	// TextureFilter.Anisotropic
-				Filter.Linear,	// TextureFilter.LinearMipPoint
-				Filter.Nearest,	// TextureFilter.PointMipLinear
-				Filter.Nearest,	// TextureFilter.MinLinearMagPointMipLinear
-				Filter.Nearest,	// TextureFilter.MinLinearMagPointMipPoint
-				Filter.Linear,	// TextureFilter.MinPointMagLinearMipLinear
-				Filter.Linear	// TextureFilter.MinPointMagLinearMipPoint
+				Filter.Linear, // TextureFilter.Linear
+				Filter.Nearest, // TextureFilter.Point
+				Filter.Linear, // TextureFilter.Anisotropic
+				Filter.Linear, // TextureFilter.LinearMipPoint
+				Filter.Nearest, // TextureFilter.PointMipLinear
+				Filter.Nearest, // TextureFilter.MinLinearMagPointMipLinear
+				Filter.Nearest, // TextureFilter.MinLinearMagPointMipPoint
+				Filter.Linear, // TextureFilter.MinPointMagLinearMipLinear
+				Filter.Linear // TextureFilter.MinPointMagLinearMipPoint
 			};
 
 			public static readonly Filter[] MipFilter = new Filter[]
 			{
-				Filter.Linear,	// TextureFilter.Linear
-				Filter.Nearest,	// TextureFilter.Point
-				Filter.Linear,	// TextureFilter.Anisotropic
-				Filter.Nearest,	// TextureFilter.LinearMipPoint
-				Filter.Linear,	// TextureFilter.PointMipLinear
-				Filter.Linear,	// TextureFilter.MinLinearMagPointMipLinear
-				Filter.Nearest,	// TextureFilter.MinLinearMagPointMipPoint
-				Filter.Linear,	// TextureFilter.MinPointMagLinearMipLinear
-				Filter.Nearest	// TextureFilter.MinPointMagLinearMipPoint
+				Filter.Linear, // TextureFilter.Linear
+				Filter.Nearest, // TextureFilter.Point
+				Filter.Linear, // TextureFilter.Anisotropic
+				Filter.Nearest, // TextureFilter.LinearMipPoint
+				Filter.Linear, // TextureFilter.PointMipLinear
+				Filter.Linear, // TextureFilter.MinLinearMagPointMipLinear
+				Filter.Nearest, // TextureFilter.MinLinearMagPointMipPoint
+				Filter.Linear, // TextureFilter.MinPointMagLinearMipLinear
+				Filter.Nearest // TextureFilter.MinPointMagLinearMipPoint
 			};
 
 			public static readonly Filter[] MinFilter = new Filter[]
 			{
-				Filter.Linear,	// TextureFilter.Linear
-				Filter.Nearest,	// TextureFilter.Point
-				Filter.Linear,	// TextureFilter.Anisotropic
-				Filter.Linear,	// TextureFilter.LinearMipPoint
-				Filter.Nearest,	// TextureFilter.PointMipLinear
-				Filter.Linear,	// TextureFilter.MinLinearMagPointMipLinear
-				Filter.Linear,	// TextureFilter.MinLinearMagPointMipPoint
-				Filter.Nearest,	// TextureFilter.MinPointMagLinearMipLinear
-				Filter.Nearest	// TextureFilter.MinPointMagLinearMipPoint
+				Filter.Linear, // TextureFilter.Linear
+				Filter.Nearest, // TextureFilter.Point
+				Filter.Linear, // TextureFilter.Anisotropic
+				Filter.Linear, // TextureFilter.LinearMipPoint
+				Filter.Nearest, // TextureFilter.PointMipLinear
+				Filter.Linear, // TextureFilter.MinLinearMagPointMipLinear
+				Filter.Linear, // TextureFilter.MinLinearMagPointMipPoint
+				Filter.Nearest, // TextureFilter.MinPointMagLinearMipLinear
+				Filter.Nearest // TextureFilter.MinPointMagLinearMipPoint
 			};
 
 			public static readonly PrimitiveTopology[] Primitive = new PrimitiveTopology[]
 			{
-				PrimitiveTopology.TriangleList,	// PrimitiveType.TriangleList
-				PrimitiveTopology.TriangleStrip,	// PrimitiveType.TriangleStrip
-				PrimitiveTopology.LineList,		// PrimitiveType.LineList
-				PrimitiveTopology.LineStrip,	// PrimitiveType.LineStrip
-				PrimitiveTopology.PointList		// PrimitiveType.PointListEXT
+				PrimitiveTopology.TriangleList, // PrimitiveType.TriangleList
+				PrimitiveTopology.TriangleStrip, // PrimitiveType.TriangleStrip
+				PrimitiveTopology.LineList, // PrimitiveType.LineList
+				PrimitiveTopology.LineStrip, // PrimitiveType.LineStrip
+				PrimitiveTopology.PointList // PrimitiveType.PointListEXT
 			};
 
 			public static int PrimitiveVerts(PrimitiveType primitiveType, int primitiveCount)
@@ -661,6 +625,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					case PrimitiveType.PointListEXT:
 						return primitiveCount;
 				}
+
 				throw new NotSupportedException();
 			}
 
@@ -683,6 +648,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					case 1:
 						return Vulkan.SampleCountFlags.Count1;
 				}
+
 				throw new NotSupportedException();
 			}
 		}
@@ -713,11 +679,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public int Height { get; private set; }
 
-			public Format PixelFormat
-			{
-				get;
-				private set;
-			}
+			public Format PixelFormat { get; private set; }
 
 			public DepthFormat DepthFormat { get; private set; }
 
@@ -795,13 +757,12 @@ namespace Microsoft.Xna.Framework.Graphics
 		public bool SupportsS3tc { get; }
 		public bool SupportsHardwareInstancing { get; }
 		public bool SupportsNoOverwrite { get; }
+
 		public int MaxTextureSlots
 		{
-			get
-			{
-				return 16;
-			}
+			get { return 16; }
 		}
+
 		public int MaxMultiSampleCount { get; }
 		public IGLBackbuffer Backbuffer { get; private set; }
 
@@ -921,7 +882,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					//ApiVersion = 4194304, // 1.0
 					ApiVersion = 4198400, // 1.1 4198400
 				},
-				EnabledLayerNames = new [] {"VK_LAYER_KHRONOS_validation"},
+				EnabledLayerNames = new[] {"VK_LAYER_KHRONOS_validation"},
 				//VK_EXT_debug_report
 				EnabledExtensionNames = new string[] {"VK_KHR_surface", "VK_KHR_win32_surface", "VK_EXT_debug_report"}
 			});
@@ -1004,6 +965,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				throw new Exception("YO INCOMPLETE");
 			}
+
 			uint graphicsQueueIndex = indices.GraphicsFamily.Value;
 			uint presentQueueIndex = indices.PresentFamily.Value;
 
@@ -1059,11 +1021,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			setupSwapchain(surfaceCaps, windowWidth, windowHeight);
 
-			var kk = (ulong)((IMarshalling) device).Handle;
+			var kk = (ulong) ((IMarshalling) device).Handle;
 			var kkola = Convert.ToString(53, 2);
-			var llpla = Convert.ToString((long)kk, 2).PadLeft(64, '0');
+			var llpla = Convert.ToString((long) kk, 2).PadLeft(64, '0');
 
-			var shaderContext = MojoShader.MOJOSHADER_vkInitDevice(((IMarshalling)device).Handle, ((IMarshalling)physicalDevice).Handle);
+			var shaderContext = MojoShader.MOJOSHADER_vkInitDevice(((IMarshalling) device).Handle,
+				((IMarshalling) physicalDevice).Handle);
 			if (shaderContext == IntPtr.Zero)
 			{
 				throw new Exception("Failed to init device");
@@ -1097,6 +1060,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				Textures[i] = VulkanTexture.NullTexture;
 				Samplers[i] = IntPtr.Zero;
 			}
+
 			textureNeedsUpdate = new bool[MaxTextureSlots];
 			samplerNeedsUpdate = new bool[MaxTextureSlots];
 
@@ -1132,6 +1096,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					{
 						XNAToVK.TextureFormat[i] = Format.R8G8B8A8Unorm;
 					}
+
 					// todo: else handle other formats too.
 				}
 
@@ -1171,39 +1136,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			ldVertexBuffers = new ulong[MAX_BOUND_VERTEX_BUFFERS];
 			ldVertexBufferOffsets = new int[MAX_BOUND_VERTEX_BUFFERS];
 
-			/*
-			try
-			{
-				var managedArray = File.ReadAllBytes("jella.monk.fe_ShaderFunction24_first.frag");
-				uint[] decoded = new uint[managedArray.Length / 4];
-				System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
-				var kk1 = device.CreateShaderModule(new ShaderModuleCreateInfo
-				{
-					Code = decoded
-				});
-
-				Console.WriteLine($"Got {kk1}");
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine(e.Message);
-			}
-			try {
-				var managedArray = File.ReadAllBytes("jella.monk.fe_ShaderFunction4_first.vert");
-				uint[] decoded = new uint[managedArray.Length / 4];
-				System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
-				var kk1 = device.CreateShaderModule(new ShaderModuleCreateInfo
-				{
-					Code = decoded
-				});
-
-				Console.WriteLine($"Got {kk1}");
-			}
-			catch (Exception e)
-			{
-				Console.WriteLine(e.Message);
-			}
-			*/
 			/*
 			// Some users might want pixely upscaling...
 			backbufferScaleMode = Environment.GetEnvironmentVariable(
@@ -1413,10 +1345,11 @@ namespace Microsoft.Xna.Framework.Graphics
 			//throw new NotImplementedException();
 		}
 
-		ImageMemoryBarrier imageMemoryBarrierz(Image image, AccessFlags srcAccessMask, AccessFlags dstAccessMask, ImageLayout oldLayout, ImageLayout newLayout)
+		ImageMemoryBarrier imageMemoryBarrierz(Image image, AccessFlags srcAccessMask, AccessFlags dstAccessMask,
+			ImageLayout oldLayout, ImageLayout newLayout)
 		{
 			return new ImageMemoryBarrier
-			{
+				{
 					SrcAccessMask = srcAccessMask,
 					DstAccessMask = dstAccessMask,
 					OldLayout = oldLayout,
@@ -1430,8 +1363,8 @@ namespace Microsoft.Xna.Framework.Graphics
 						LevelCount = uint.MaxValue,
 						LayerCount = uint.MaxValue,
 					}
-			}
-			;
+				}
+				;
 		}
 
 		private bool frameInProgress = false;
@@ -1460,9 +1393,9 @@ namespace Microsoft.Xna.Framework.Graphics
 				AccessFlags.ColorAttachmentWrite,
 				ImageLayout.Undefined,
 				ImageLayout.ColorAttachmentOptimal
-				);
+			);
 			//_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
-	//			PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, new MemoryBarrier[0], new BufferMemoryBarrier[0], new[] {renderBeginBarrier});
+			//			PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, new MemoryBarrier[0], new BufferMemoryBarrier[0], new[] {renderBeginBarrier});
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
 				PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, null, null, renderBeginBarrier);
 
@@ -1490,10 +1423,16 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private ClearValue[] getCurrentClearValues()
 		{
-			return new[] {new ClearValue { Color = new ClearColorValue
+			return new[]
 			{
-				Float32 = new[] {clearColor.X, clearColor.Y, clearColor.Z, clearColor.W},
-			} }};
+				new ClearValue
+				{
+					Color = new ClearColorValue
+					{
+						Float32 = new[] {clearColor.X, clearColor.Y, clearColor.Z, clearColor.W},
+					}
+				}
+			};
 		}
 
 		public void SwapBuffers(Rectangle? sourceRectangle, Rectangle? destinationRectangle,
@@ -1551,8 +1490,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 
 				}
+
 				throw new Exception("Failed to present. Needs work.", e);
 			}
+
 			graphicsQueue.WaitIdle();
 
 			// Reset buffers
@@ -1560,6 +1501,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				Buffers[i].Reset();
 			}
+
 			MojoShader.MOJOSHADER_vkEndFrame();
 
 			// We're done here.
@@ -1571,7 +1513,100 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
-		void getMaybeCachedShaders(out ShaderModule fshader, out String fname, out ShaderModule vshader, out String vname)
+		struct CurrentAttachmentState
+		{
+			public int vpflip;
+			public int array_vec4;
+			public int array_ivec4;
+			public int array_bool;
+			public int[] samplers;
+
+			public CurrentAttachmentState(int i)
+			{
+				vpflip = i;
+				array_vec4 = i;
+				array_ivec4 = i;
+				array_bool = i;
+				samplers = new[] { i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, };
+			}
+		}
+
+		unsafe int compileShader(MojoShader.MOJOSHADER_parseData* pd, int base_location, out CurrentAttachmentState state)
+		{
+			var data_len = pd->output_len - Marshal.SizeOf(typeof(MojoShader.SpirvPatchTable));
+			var output = ((int*) pd->output);
+			var table = (MojoShader.SpirvPatchTable*) (pd->output + data_len);
+
+			int getBound(MojoShader.SpirvPatchEntry entry)
+			{
+				if (Convert.ToBoolean(entry.offset))
+				{
+					return output[entry.offset] + base_location;
+				}
+
+				return -1;
+			}
+
+			state = new CurrentAttachmentState
+			{
+				vpflip = getBound(table->vpflip),
+				array_vec4 = getBound(table->array_vec4),
+				array_ivec4 = getBound(table->array_ivec4),
+				array_bool = getBound(table->array_bool),
+				samplers = new []
+				{
+					getBound(table->sampler1),
+					getBound(table->sampler2),
+					getBound(table->sampler3),
+					getBound(table->sampler4),
+					getBound(table->sampler5),
+					getBound(table->sampler6),
+					getBound(table->sampler7),
+					getBound(table->sampler8),
+					getBound(table->sampler9),
+					getBound(table->sampler10),
+					getBound(table->sampler11),
+					getBound(table->sampler12),
+					getBound(table->sampler13),
+					getBound(table->sampler14),
+					getBound(table->sampler15),
+					getBound(table->sampler16),
+				}
+			};
+
+			return table->location_count;
+		}
+
+		unsafe void getSwigity(IntPtr vshader, IntPtr fshader, out CurrentAttachmentState vstate, out CurrentAttachmentState fstate)
+		{
+			int baseLocation = 0;
+
+			if (vshader != IntPtr.Zero)
+			{
+				var vParseData = ((MojoShader.MOJOSHADER_parseData*)
+					((MojoShader.MOJOSHADER_vkShader*) vshader)->parseData);
+
+				baseLocation += compileShader(vParseData, baseLocation, out vstate);
+			}
+			else
+			{
+				vstate = new CurrentAttachmentState(-1);
+			}
+
+			if (fshader != IntPtr.Zero)
+			{
+				var fParseData = ((MojoShader.MOJOSHADER_parseData*)
+					((MojoShader.MOJOSHADER_vkShader*) fshader)->parseData);
+
+				compileShader(fParseData, baseLocation, out fstate);
+			}
+			else
+			{
+				fstate = new CurrentAttachmentState(-1);
+			}
+		}
+
+	void getMaybeCachedShaders(out ShaderModule fshader, out String fname, out ShaderModule vshader, out String vname)
 		{
 			var fieldInfo = typeof(ShaderModule).GetField("m", BindingFlags.NonPublic | BindingFlags.Instance);
 			Debug.Assert(fieldInfo != null);
@@ -1590,7 +1625,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				var vert = ((MojoShader.MOJOSHADER_vkShader*) shaderState.vertexShader);
 				var sm = vert->shaderModule;
-				UInt64 sss = (UInt64) sm;
+				UInt64 sss = sm;
 				var frag = ((MojoShader.MOJOSHADER_vkShader*) shaderState.fragmentShader);
 				var fshrptr = frag->shaderModule;
 				object f = fshader;
@@ -1643,52 +1678,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			};
 
 			return device.AllocateDescriptorSets (descriptorSetAllocateInfo);
-		}
-
-		private Buffer uniformBufferV;
-		private uint uniformBufferOffsetV;
-		private DeviceSize uniformBufferSizeV;
-
-		void UpdateDescriptorSets()
-		{
-			var uniformBufferInfo = new DescriptorBufferInfo
-			{
-				Buffer = uniformBufferV,
-				Offset = uniformBufferOffsetV,
-				Range = uniformBufferSizeV - uniformBufferOffsetV, // todo: how much data are we writing?
-			};
-			var writeDescriptorSet = new WriteDescriptorSet
-			{
-				DstSet = descriptorSets[0],
-				DstBinding = 0, // yass
-				DstArrayElement = 0,
-				DescriptorType = DescriptorType.UniformBuffer,
-				BufferInfo = new DescriptorBufferInfo[] {uniformBufferInfo}
-			};
-
-			List<WriteDescriptorSet> writeDescriptorSets = new List<WriteDescriptorSet>();
-			writeDescriptorSets.Add(writeDescriptorSet);
-
-			if (_texture.Sampler != null) {
-				var imageInfo = new DescriptorImageInfo
-				{
-					ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
-					ImageView = _texture.ImageView,
-					Sampler = _texture.Sampler,
-				};
-
-				var imageWriteDescriptorSet = new WriteDescriptorSet
-				{
-					DstSet = descriptorSets[0],
-					DstBinding = 4, // YASS!!!
-					DstArrayElement = 0,
-					DescriptorType = DescriptorType.CombinedImageSampler,
-					ImageInfo = new [] {imageInfo},
-				};
-				writeDescriptorSets.Add(imageWriteDescriptorSet);
-			}
-
-			device.UpdateDescriptorSets (writeDescriptorSets.ToArray(), null);
 		}
 
 		private uint getMemoryTypeIndex(uint memoryTypeBits, MemoryPropertyFlags properties)
@@ -2092,12 +2081,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				Console.WriteLine("USing render targets\n");
 				usageFlags = ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled;
 			}
-
-			if (format==SurfaceFormat.ColorBgraEXT)
-			{
-				int x = 2;
-			}
-			//usageFlags = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled;
 
 			var textureImage = device.CreateImage(new ImageCreateInfo
 			{
@@ -2870,94 +2853,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			var vulkanEffect = new VulkanEffect(effect, vkEffect);
 
-			//var shaderBundles = new List<ShaderBundle>();
-			//if (false)
-			//{
-				unsafe
-				{
-					MojoShader.MOJOSHADER_effect* effectPtr = (MojoShader.MOJOSHADER_effect*) effect;
-					MojoShader.MOJOSHADER_effectObject* objects =
-						(MojoShader.MOJOSHADER_effectObject*) effectPtr->objects;
-
-					var kkkkk = (MojoShader.MOJOSHADER_effectTechnique*) effectPtr->current_technique;
-
-					for (int i = 0; i < effectPtr->object_count; i += 1)
-					{
-						var effectObject = objects[i];
-						if (effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_PIXELSHADER
-						    || effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_VERTEXSHADER)
-						{
-							if (Convert.ToBoolean(effectObject.shader.is_preshader))
-							{
-								vulkanEffect.NumPreshaders++;
-							}
-							else
-							{
-								vulkanEffect.NumShaders++;
-							}
-						}
-					}
-
-					vulkanEffect.ShaderIndices = new uint[vulkanEffect.NumShaders];
-					vulkanEffect.PreshaderIndices = new uint[vulkanEffect.NumPreshaders];
-					vulkanEffect.Shaders = new VkShader[vulkanEffect.NumShaders];
-
-					int current_shader = 0;
-					var current_preshader = 0;
-
-					for (uint i = 0; i < effectPtr->object_count; i += 1)
-					{
-						var effectObject = objects[i];
-						if (effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_PIXELSHADER
-						    || effectObject.type == MojoShader.MOJOSHADER_symbolType.MOJOSHADER_SYMTYPE_VERTEXSHADER)
-						{
-							if (Convert.ToBoolean(effectObject.shader.is_preshader))
-							{
-								vulkanEffect.PreshaderIndices[current_preshader++] = i;
-								continue;
-							}
-
-							var parseData = ((MojoShader.MOJOSHADER_parseData*) effectObject.shader.shader)[0];
-
-							var shader = profileCompileShader(parseData);
-							//vulkanEffect.Shaders[current_shader] = new VkShader();
-							vulkanEffect.Shaders[current_shader].ParseData = parseData;
-							vulkanEffect.Shaders[current_shader].Handle = shader;
-							vulkanEffect.Shaders[current_shader].Refcount = 1;
-							vulkanEffect.ShaderIndices[current_shader] = i;
-							current_shader++;
-						}
-					}
-
-				}
-			//}
-
-			//vulkanEffect.ShaderBundles = shaderBundles;
 			return vulkanEffect;
-		}
-
-		private ShaderModule profileCompileShader(MojoShader.MOJOSHADER_parseData parseData)
-		{
-			var entrypoint = Marshal.PtrToStringAnsi(parseData.mainfn);
-			var size = parseData.output_len - 168; // GET FUCKING FUCKED sizeof(SpirvPatchTable)
-			var pnt = parseData.output;
-			byte[] managedArray = new byte[size];
-			Marshal.Copy(pnt, managedArray, 0, size);
-			uint[] decoded = new uint[managedArray.Length / 4];
-			System.Buffer.BlockCopy(managedArray, 0, decoded, 0, managedArray.Length);
-			// yes i copy once to byte[] then once to uint[]
-			// todo: it's a fucking hack.
-			try
-			{
-				return device.CreateShaderModule(new ShaderModuleCreateInfo
-					{Code = decoded});
-			}
-			catch (Exception e)
-			{
-				return null;
-			}
-
-			//return shaderModule;
 		}
 
 		private void DeleteEffect(IGLEffect effect)
@@ -3202,17 +3098,58 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Resource Binding Method
 
-		// todo: delete this when refactoring
-		VulkanTexture _texture = null;
+		DescriptorSetLayoutBinding makeBinding(DescriptorType descriptorType, ShaderStageFlags shaderStageFlags, int binding)
+		{
+			return new DescriptorSetLayoutBinding
+			{
+				DescriptorType = descriptorType,
+				StageFlags = shaderStageFlags,
+				Binding = (uint) binding,
+				DescriptorCount = 1,
+			};
+		}
 
 		private void BindResources()
 		{
 			getMaybeCachedShaders(out var fshader, out var fname, out var vshader, out var vname);
 
+			getSwigity(shaderState.vertexShader, shaderState.fragmentShader, out var vstate, out var fstate);
+
+			var descriptorSetLayoutBindings = new List<DescriptorSetLayoutBinding>();
+
+			if (vstate.vpflip >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Vertex,
+					vstate.vpflip));
+			if (vstate.array_bool >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Vertex,
+					vstate.array_bool));
+			if (vstate.array_ivec4 >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Vertex,
+					vstate.array_ivec4));
+			if (vstate.array_vec4 >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Vertex,
+					vstate.array_vec4));
+			descriptorSetLayoutBindings.AddRange(vstate.samplers.Where(c => c >= 0).Select(c => makeBinding(DescriptorType.CombinedImageSampler, ShaderStageFlags.Vertex, c)));
+			if (fstate.vpflip >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Fragment,
+					fstate.vpflip));
+			if (fstate.array_bool >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Fragment,
+					fstate.array_bool));
+			if (fstate.array_ivec4 >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Fragment,
+					fstate.array_ivec4));
+			if (fstate.array_vec4 >= 0)
+				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Fragment,
+					fstate.array_vec4));
+			descriptorSetLayoutBindings.AddRange(fstate.samplers.Where(c => c >= 0).Select(c => makeBinding(DescriptorType.CombinedImageSampler, ShaderStageFlags.Fragment, c)));
+
 			var setLayout = device.CreateDescriptorSetLayout(new DescriptorSetLayoutCreateInfo
 			{
-				Bindings = new[]
-				{
+				Bindings = descriptorSetLayoutBindings.ToArray(),
+
+				//new[]
+				//{
 					// who are these? why do they both exist?
 
 					/*
@@ -3225,6 +3162,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					},
 					*/
 
+					/*
 						// todo: we can't hard-code this. this is so wrong.
 					new DescriptorSetLayoutBinding
 					{
@@ -3242,8 +3180,8 @@ namespace Microsoft.Xna.Framework.Graphics
 						StageFlags = ShaderStageFlags.Fragment,
 						Binding = 4,
 						DescriptorCount = 1,
-					}
-				},
+					}*/
+				//},
 				//Flags = DescriptorSetLayoutCreateFlags.PushDescriptorKhr
 			});
 			_setLayout = setLayout;
@@ -3395,23 +3333,32 @@ namespace Microsoft.Xna.Framework.Graphics
 			uniformBufferSizeV = bufferSizeii;
 			*/
 
+			descriptorSets = CreateDescriptorSets();
+			var writeDescriptorSets = new List<WriteDescriptorSet>();
+
 			// Bind textures and their sampler states
-
-
-
 			for (int i = 0; i < Textures.Length; i += 1)
 			{
 				if (textureNeedsUpdate[i])
 				{
-					/*
-					mtlSetFragmentTexture(
-						renderCommandEncoder,
-						Textures[i].Handle,
-						i
-					);
-					*/
-					_texture = Textures[i];
-					int textureBindingOffset = 4;
+					Debug.Assert(fstate.samplers[i] > -1);
+
+					var imageInfo = new DescriptorImageInfo
+					{
+						ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
+						ImageView = Textures[i].ImageView,
+						Sampler = Textures[i].Sampler,
+					};
+
+					var imageWriteDescriptorSet = new WriteDescriptorSet
+					{
+						DstSet = descriptorSets[0],
+						DstBinding = (uint)fstate.samplers[i], // YASS!!!
+						DstArrayElement = 0,
+						DescriptorType = DescriptorType.CombinedImageSampler,
+						ImageInfo = new [] {imageInfo},
+					};
+					writeDescriptorSets.Add(imageWriteDescriptorSet);
 
 					textureNeedsUpdate[i] = false;
 				}
@@ -3436,15 +3383,36 @@ namespace Microsoft.Xna.Framework.Graphics
 			int vOff = shaderState.vertexUniformOffset;
 			if (vUniform != ldVertUniformBuffer)
 			{
+				Debug.Assert(vstate.array_vec4 > -1);
+				Buffer uniformBuffer;
+				DeviceSize uniformBufferSize;
+
 				unsafe
 				{
 					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
 					var size = vertexUniformBuffer->size;
 					var bufferPtr = vertexUniformBuffer->buffer;
-					uniformBufferV = MyClass.makeT<Buffer>(bufferPtr);
-					uniformBufferSizeV = size;
-					uniformBufferOffsetV = (uint)vOff;
-				}
+					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
+					uniformBufferSize = size;
+				};
+
+				uint uniformBufferOffset = (uint)vOff;
+
+				var uniformBufferInfo = new DescriptorBufferInfo
+				{
+					Buffer = uniformBuffer,
+					Offset = uniformBufferOffset,
+					Range = uniformBufferSize - uniformBufferOffset, // todo: how much data are we writing?
+				};
+				var writeDescriptorSet = new WriteDescriptorSet
+				{
+					DstSet = descriptorSets[0],
+					DstBinding = (uint)vstate.array_vec4, // yass
+					DstArrayElement = 0,
+					DescriptorType = DescriptorType.UniformBuffer,
+					BufferInfo = new[] {uniformBufferInfo}
+				};
+				writeDescriptorSets.Add(writeDescriptorSet);
 
 				ldVertUniformBuffer = vUniform;
 				ldVertUniformOffset = vOff;
@@ -3452,15 +3420,36 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			else if (vOff != ldVertUniformOffset)
 			{
+				Debug.Assert(vstate.array_vec4 > -1);
+				Buffer uniformBuffer;
+				DeviceSize uniformBufferSize;
+
 				unsafe
 				{
 					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
 					var size = vertexUniformBuffer->size;
 					var bufferPtr = vertexUniformBuffer->buffer;
-					uniformBufferV = MyClass.makeT<Buffer>(bufferPtr);
-					uniformBufferSizeV = size;
-					uniformBufferOffsetV = (uint)vOff;
-				}
+					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
+					uniformBufferSize = size;
+				};
+
+				uint uniformBufferOffset = (uint)vOff;
+
+				var uniformBufferInfo = new DescriptorBufferInfo
+				{
+					Buffer = uniformBuffer,
+					Offset = uniformBufferOffset,
+					Range = uniformBufferSize - uniformBufferOffset, // todo: how much data are we writing?
+				};
+				var writeDescriptorSet = new WriteDescriptorSet
+				{
+					DstSet = descriptorSets[0],
+					DstBinding = (uint)vstate.array_vec4, // yass
+					DstArrayElement = 0,
+					DescriptorType = DescriptorType.UniformBuffer,
+					BufferInfo = new[] {uniformBufferInfo}
+				};
+				writeDescriptorSets.Add(writeDescriptorSet);
 
 				ldVertUniformOffset = vOff;
 			}
@@ -3469,33 +3458,77 @@ namespace Microsoft.Xna.Framework.Graphics
 			int fOff = shaderState.fragmentUniformOffset;
 			if (fUniform != ldFragUniformBuffer)
 			{
-				throw new NotImplementedException("Fragment Uniform Buffer support incomplete");
-				/*
-				mtlSetFragmentBuffer(
-					renderCommandEncoder,
-					fUniform,
-					fOff,
-					UNIFORM_REG
-				);
-				*/
+				Debug.Assert(fstate.array_vec4 > -1);
+				Buffer uniformBuffer;
+				DeviceSize uniformBufferSize;
+
+				unsafe
+				{
+					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
+					var size = vertexUniformBuffer->size;
+					var bufferPtr = vertexUniformBuffer->buffer;
+					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
+					uniformBufferSize = size;
+				};
+
+				uint uniformBufferOffset = (uint)vOff;
+
+				var uniformBufferInfo = new DescriptorBufferInfo
+				{
+					Buffer = uniformBuffer,
+					Offset = uniformBufferOffset,
+					Range = uniformBufferSize - uniformBufferOffset, // todo: how much data are we writing?
+				};
+				var writeDescriptorSet = new WriteDescriptorSet
+				{
+					DstSet = descriptorSets[0],
+					DstBinding = (uint)fstate.array_vec4, // yass
+					DstArrayElement = 0,
+					DescriptorType = DescriptorType.UniformBuffer,
+					BufferInfo = new[] {uniformBufferInfo}
+				};
+				writeDescriptorSets.Add(writeDescriptorSet);
+
 				ldFragUniformBuffer = fUniform;
 				ldFragUniformOffset = fOff;
 			}
 			else if (fOff != ldFragUniformOffset)
 			{
-				throw new NotImplementedException("Fragment Uniform Buffer support incomplete");
-				/*
-				mtlSetFragmentBufferOffset(
-					renderCommandEncoder,
-					fOff,
-					UNIFORM_REG
-				);
-				*/
+				Debug.Assert(fstate.array_vec4 > -1);
+				Buffer uniformBuffer;
+				DeviceSize uniformBufferSize;
+
+				unsafe
+				{
+					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
+					var size = vertexUniformBuffer->size;
+					var bufferPtr = vertexUniformBuffer->buffer;
+					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
+					uniformBufferSize = size;
+				};
+
+				uint uniformBufferOffset = (uint)vOff;
+
+				var uniformBufferInfo = new DescriptorBufferInfo
+				{
+					Buffer = uniformBuffer,
+					Offset = uniformBufferOffset,
+					Range = uniformBufferSize - uniformBufferOffset, // todo: how much data are we writing?
+				};
+				var writeDescriptorSet = new WriteDescriptorSet
+				{
+					DstSet = descriptorSets[0],
+					DstBinding = (uint)fstate.array_vec4, // yass
+					DstArrayElement = 0,
+					DescriptorType = DescriptorType.UniformBuffer,
+					BufferInfo = new[] {uniformBufferInfo}
+				};
+				writeDescriptorSets.Add(writeDescriptorSet);
+
 				ldFragUniformOffset = fOff;
 			}
 
-			descriptorSets = CreateDescriptorSets();
-			UpdateDescriptorSets();
+			device.UpdateDescriptorSets (writeDescriptorSets.ToArray(), null);
 			_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[0], null);
 
 			// Bind the depth-stencil state
@@ -3523,6 +3556,18 @@ namespace Microsoft.Xna.Framework.Graphics
 				ldPipelineState = pipelineState;
 			}
 			*/
+			// Reset the bindings
+			for (int i = 0; i < MaxTextureSlots; i += 1)
+			{
+				if (Textures[i] != VulkanTexture.NullTexture)
+				{
+					textureNeedsUpdate[i] = true;
+				}
+				if (Samplers[i] != IntPtr.Zero)
+				{
+					samplerNeedsUpdate[i] = true;
+				}
+			}
 			//ldDepthStencilState = IntPtr.Zero;
 			ldFragUniformBuffer = IntPtr.Zero;
 			ldFragUniformOffset = 0;
