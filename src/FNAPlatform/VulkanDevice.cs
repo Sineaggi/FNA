@@ -538,13 +538,23 @@ namespace Microsoft.Xna.Framework.Graphics
 				PolygonMode.Line // FillMode.WireFrame
 			};
 
-			public static readonly float[] DepthBiasScale = new float[]
+			public static float DepthBiasScale(Format format)
 			{
-				0.0f, // DepthFormat.None
-				(float) ((1 << 16) - 1), // DepthFormat.Depth16
-				(float) ((1 << 24) - 1), // DepthFormat.Depth24
-				(float) ((1 << 24) - 1) // DepthFormat.Depth24Stencil8
-			};
+				switch (format)
+				{
+					case Format.D16Unorm:
+						return (float) ((1 << 16) - 1);
+
+					case Format.D24UnormS8Uint:
+						return (float) ((1 << 24) - 1);
+
+					case Format.D32Sfloat:
+					case Format.D32SfloatS8Uint:
+						return (float) ((1 << 23) - 1);
+				}
+
+				return 0.0f;
+			}
 
 			public static readonly CullModeFlags[] CullingEnabled = new CullModeFlags[]
 			{
@@ -758,9 +768,63 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#endregion
 
-		public Color BlendFactor { get; set; }
-		public int MultiSampleMask { get; set; }
-		public int ReferenceStencil { get; set; }
+		#region Blending State Variables
+
+		private Color blendColor = Color.Transparent;
+
+		public Color BlendFactor
+		{
+			get
+			{
+				return blendColor;
+			}
+			set
+			{
+				if (value != blendColor)
+				{
+					blendColor = value;
+					SetEncoderBlendColor();
+				}
+			}
+		}
+
+		private int multisampleMask = -1; // AKA 0xFFFFFFFF
+		public int MultiSampleMask
+		{
+			get
+			{
+				return multisampleMask;
+			}
+			set
+			{
+				multisampleMask = value;
+				// FIXME: Metal does not support multisample masks. Workarounds...?
+			}
+		}
+
+		#endregion
+
+		#region Stencil State Variables
+
+		private int stencilRef = 0;
+		public int ReferenceStencil
+		{
+			get
+			{
+				return stencilRef;
+			}
+			set
+			{
+				if (value != stencilRef)
+				{
+					stencilRef = value;
+					SetEncoderStencilReferenceValue();
+				}
+			}
+		}
+
+		#endregion
+
 		public bool SupportsDxt1 { get; }
 		public bool SupportsS3tc { get; }
 		public bool SupportsHardwareInstancing { get; }
@@ -1298,6 +1362,15 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			var depthFormat = Format.D16Unorm;
 
+			//todo: potentially set dynamic state
+			var kk = new PipelineDynamicStateCreateInfo
+			{
+				DynamicStates = new []
+				{
+					DynamicState.Viewport,
+				}
+			};
+
 			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{
 				Attachments = new[]
@@ -1306,7 +1379,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					{
 						Format = format,
 						Samples = SampleCountFlags.Count1,
-						LoadOp = AttachmentLoadOp.Clear,
+						LoadOp = AttachmentLoadOp.Clear, //todo: needs to be generated from clear booleans
 						StoreOp = AttachmentStoreOp.Store,
 						StencilLoadOp = AttachmentLoadOp.DontCare,
 						StencilStoreOp = AttachmentStoreOp.DontCare,
@@ -1913,23 +1986,16 @@ namespace Microsoft.Xna.Framework.Graphics
 			//throw new NotImplementedException();
 		}
 
-		private Rectangle scissorRectangle = new Rectangle(
-			0,
-			0,
-			0,
-			0
-		);
-
-		private Rectangle viewport = new Rectangle(
-			0,
-			0,
-			0,
-			0
-		);
-
+		private Rectangle scissorRectangle = new Rectangle();
+		private Rectangle viewport = new Rectangle();
 		private float depthRangeMin = 0.0f;
 		private float depthRangeMax = 1.0f;
+
 		private RenderPass renderPass;
+
+		/* Used for resetting scissor rectangle */
+		private int currentAttachmentWidth;
+		private int currentAttachmentHeight;
 
 		public void SetViewport(Viewport vp)
 		{
@@ -1937,9 +2003,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			    vp.MinDepth != depthRangeMin ||
 			    vp.MaxDepth != depthRangeMax)
 			{
-				// todo: impl this?
-				// they're not different so set them? what does this do? when can you call it?
-				// when can we set it in vulkan?
+				viewport = vp.Bounds;
+				depthRangeMin = vp.MinDepth;
+				depthRangeMax = vp.MaxDepth;
+				SetEncoderViewport(); // Dynamic state!
 			}
 		}
 
@@ -1975,10 +2042,123 @@ namespace Microsoft.Xna.Framework.Graphics
 		private float slopeScaleDepthBias = 0.0f;
 		private bool multiSampleEnable = true;
 
-		private void SetEncoderDepthBias() {}
-		private void SetEncoderScissorRect(){}
-		private void SetEncoderCullMode(){}
-		private void SetEncoderFillMode(){}
+		private void SetEncoderViewport()
+		{
+			if (renderCommandEncoder != IntPtr.Zero && !needNewRenderPass)
+			{
+				Debug.Assert(viewport.X == 0);
+				Debug.Assert(viewport.Y == 0);
+				_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
+				{
+					//todo: is this right? what if x and y are set?
+					X = 0,
+					Y = viewport.Height,
+					Width = viewport.Width,
+					Height = -viewport.Height,
+					MaxDepth = depthRangeMax,
+					MinDepth = depthRangeMin,
+				});
+			}
+		}
+
+		private void SetEncoderDepthBias()
+		{
+			if (renderCommandEncoder != IntPtr.Zero && !needNewRenderPass)
+			{
+				_commandBuffer.CmdSetDepthBias(
+					depthBias,
+					0.0f, // no clamp
+					slopeScaleDepthBias);
+			}
+		}
+
+		private void SetEncoderScissorRect()
+		{
+			if (renderCommandEncoder != IntPtr.Zero && !needNewRenderPass)
+			{
+				if (!scissorTestEnable)
+				{
+					// Set to the default scissor rect
+					_commandBuffer.CmdSetScissor(
+						0,
+						new Rect2D
+						{
+							Offset = new Offset2D
+							{
+								X = 0,
+								Y = 0,
+							},
+							Extent = new Extent2D
+							{
+								Width = (uint)currentAttachmentWidth,
+								Height = (uint)currentAttachmentHeight,
+							},
+						});
+				}
+				else
+				{
+					_commandBuffer.CmdSetScissor(
+						0,
+						new Rect2D
+						{
+							Offset = new Offset2D
+							{
+								X = scissorRectangle.X,
+								Y = scissorRectangle.Y,
+							},
+							Extent = new Extent2D
+							{
+								Width = (uint)scissorRectangle.Width,
+								Height = (uint)scissorRectangle.Height,
+							},
+						});
+				}
+			}
+		}
+
+		private void SetEncoderBlendColor()
+		{
+			//todo: fix busted as fuck vulkan lib
+			/*
+			_commandBuffer.CmdSetBlendConstants(
+				new []
+				{
+					blendColor.R / 255f,
+					blendColor.G / 255f,
+					blendColor.B / 255f,
+					blendColor.A / 255f
+				});
+				*/
+		}
+
+		private void SetEncoderStencilReferenceValue()
+		{
+			if (renderCommandEncoder != IntPtr.Zero && !needNewRenderPass)
+			{
+				//todo: not sure what stencil flags are, or why this flag has Stencil prepended to it.
+				_commandBuffer.CmdSetStencilReference(StencilFaceFlags.StencilFrontAndBack, (uint) stencilRef);
+			}
+		}
+
+		private void SetEncoderCullMode()
+		{
+			return;
+		}
+
+		private void SetEncoderFillMode()
+		{
+			return;
+			if (_commandBuffer != null && !needNewRenderPass)
+			{
+
+				/*
+				mtlSetTriangleFillMode(
+					renderCommandEncoder,
+					XNAToMTL.FillMode[(int) fillMode]
+				);
+				*/
+			}
+		}
 
 		/*
 		private MTLPixelFormat GetDepthFormat(DepthFormat format)
@@ -2012,7 +2192,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				SetEncoderFillMode(); // Dynamic state!
 			}
 
-			/*
+
 			float realDepthBias = rasterizerState.DepthBias;
 			realDepthBias *= XNAToVK.DepthBiasScale(
 				GetDepthFormat(currentDepthFormat)
@@ -2024,7 +2204,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				slopeScaleDepthBias = rasterizerState.SlopeScaleDepthBias;
 				SetEncoderDepthBias(); // Dynamic state!
 			}
-			*/
 
 			if (rasterizerState.MultiSampleAntiAlias != multiSampleEnable)
 			{
@@ -2110,7 +2289,11 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#endregion
 
-		public void Clear(ClearOptions options, Vector4 color, float depth, int stencil)
+		public void Clear(
+			ClearOptions options,
+			Vector4 color,
+			float depth,
+			int stencil)
 		{
 			bool clearTarget = (options & ClearOptions.Target) == ClearOptions.Target;
 			bool clearDepth = (options & ClearOptions.DepthBuffer) == ClearOptions.DepthBuffer;
@@ -3040,6 +3223,21 @@ namespace Microsoft.Xna.Framework.Graphics
 			internal uint Refcount { get; set; }
 		}
 
+		#region DepthFormat Conversion Method
+
+		private Format GetDepthFormat(DepthFormat format)
+		{
+			switch (format)
+			{
+				case DepthFormat.Depth16:		return Format.D16UnormS8Uint;
+				case DepthFormat.Depth24:		return Format.D24UnormS8Uint;
+				case DepthFormat.Depth24Stencil8:	return Format.D24UnormS8Uint;
+				default:				return Format.Undefined;
+			}
+		}
+
+		#endregion
+
 		public IGLEffect CreateEffect(byte[] effectCode)
 		{
 			IntPtr effect = IntPtr.Zero;
@@ -3309,11 +3507,33 @@ namespace Microsoft.Xna.Framework.Graphics
 			}, SubpassContents.Inline);
 			renderCommandEncoder = (IntPtr)1; // not null
 
+			// Get attachment size
+			//todo: fix hardcoded
+			currentAttachmentWidth = viewport.Width;
+			currentAttachmentHeight = viewport.Height;
+			/*
+			currentAttachmentWidth = (int) mtlGetTextureWidth(
+				currentAttachments[0]
+			);
+			currentAttachmentHeight = (int) mtlGetTextureHeight(
+				currentAttachments[0]
+			);
+			*/
+
 			// Reset the flags
 			needNewRenderPass = false;
 			shouldClearColor = false;
 			shouldClearDepth = false;
 			shouldClearStencil = false;
+
+			// Apply the dynamic state
+			SetEncoderViewport();
+			SetEncoderScissorRect();
+			SetEncoderBlendColor();
+			SetEncoderStencilReferenceValue();
+			SetEncoderCullMode();
+			SetEncoderFillMode();
+			SetEncoderDepthBias();
 		}
 
 		private VulkanBuffer userVertexBuffer = null;
