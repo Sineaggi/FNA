@@ -36,8 +36,6 @@ namespace Microsoft.Xna.Framework.Graphics
 	{
 		private class VulkanTexture : IGLTexture
 		{
-			public uint Handle { get; private set; }
-
 			public bool HasMipmaps { get; private set; }
 
 			public uint Width { get; private set; }
@@ -102,7 +100,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			// We can't set a SamplerState Texture to null, so use this.
 			private VulkanTexture()
 			{
-				Handle = 0;
+				//Handle = 0;
 				//Target = GLenum.GL_TEXTURE_2D; // FIXME: Assumption! -flibit
 			}
 
@@ -120,19 +118,19 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private class VulkanRenderbuffer : IGLRenderbuffer
 		{
-			public IntPtr Handle { get; private set; }
+			public Image Handle { get; private set; }
 
-			public IntPtr MultiSampleHandle { get; private set; }
+			public Image MultiSampleHandle { get; private set; }
 
 			public Format PixelFormat { get; private set; }
 
 			public int MultiSampleCount { get; private set; }
 
 			public VulkanRenderbuffer(
-				IntPtr handle,
+				Image handle,
 				Format pixelFormat,
 				int multiSampleCount,
-				IntPtr multiSampleHandle
+				Image multiSampleHandle
 			)
 			{
 				Handle = handle;
@@ -143,22 +141,22 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public void Dispose()
 			{
-				if (MultiSampleHandle == IntPtr.Zero)
+				if (MultiSampleHandle == null)
 				{
 					//todo
 					//objc_release(Handle);
-					Handle = IntPtr.Zero;
+					Handle = null;
 				}
 				else
 				{
 					//todo
 					//objc_release(MultiSampleHandle);
-					MultiSampleHandle = IntPtr.Zero;
+					MultiSampleHandle = null;
 
 					/* Don't release the regular Handle since
 					 * it's owned by the associated IGLTexture.
 					 */
-					Handle = IntPtr.Zero;
+					Handle = null;
 				}
 			}
 		}
@@ -266,7 +264,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				DataWasSet = true;
 				if (options == SetDataOptions.None && boundThisFrame)
 				{
-					throw new Exception("this block isn't supported");
+					//throw new Exception("this block isn't supported");
 					device.device.WaitIdle();
 					//device.Stall();
 					boundThisFrame = true;
@@ -690,9 +688,9 @@ namespace Microsoft.Xna.Framework.Graphics
 			private uint colorAttachment;
 			private uint depthStencilAttachment;
 
-			public IntPtr ColorBuffer = IntPtr.Zero;
-			public IntPtr MultiSampleColorBuffer = IntPtr.Zero;
-			public IntPtr DepthStencilBuffer = IntPtr.Zero;
+			public Image ColorBuffer = null;
+			public Image MultiSampleColorBuffer = null;
+			public Image DepthStencilBuffer = null;
 
 			private VulkanDevice vkDevice;
 
@@ -749,6 +747,16 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#endregion
 
+		#region Faux-Backbuffer Variables
+
+		// Cached data for rendering the faux-backbuffer
+		private Rectangle fauxBackbufferDestBounds;
+		private IntPtr fauxBackbufferDrawBuffer;
+		private IntPtr fauxBackbufferRenderPipeline;
+		private IntPtr fauxBackbufferSamplerState;
+		private bool fauxBackbufferSizeChanged;
+
+		#endregion
 
 		public Color BlendFactor { get; set; }
 		public int MultiSampleMask { get; set; }
@@ -857,6 +865,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private uint windowWidth, windowHeight; // todo: need's support for re-creating swapchain.
 
+		private IntPtr window;
+
 		public VulkanDevice(
 			PresentationParameters presentationParameters,
 			GraphicsAdapter adapter
@@ -949,6 +959,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					presentationParameters.DeviceWindowHandle,
 					ref wmInfo
 				);
+				window = presentationParameters.DeviceWindowHandle;
 				var hWnd = wmInfo.info.win.window;
 
 				surface = instance.CreateWin32SurfaceKHR(new Win32SurfaceCreateInfoKhr
@@ -1127,9 +1138,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			// Initialize attachment arrays
 			int numAttachments = GraphicsDevice.MAX_RENDERTARGET_BINDINGS;
-			currentAttachments = new IntPtr[numAttachments];
+			currentAttachments = new Image[numAttachments];
 			currentColorFormats = new Format[numAttachments];
-			currentMSAttachments = new IntPtr[numAttachments];
+			currentMSAttachments = new Image[numAttachments];
 			currentAttachmentSlices = new CubeMapFace[numAttachments];
 
 			// Initialize vertex buffer cache
@@ -1447,6 +1458,53 @@ namespace Microsoft.Xna.Framework.Graphics
 			// SetRenderTargets(null, null, DepthFormat.None); // todo
 			EndPass();
 
+			// Determine the regions to present
+			int srcX, srcY, srcW, srcH;
+			int dstX, dstY, dstW, dstH;
+			if (sourceRectangle.HasValue)
+			{
+				srcX = sourceRectangle.Value.X;
+				srcY = sourceRectangle.Value.Y;
+				srcW = sourceRectangle.Value.Width;
+				srcH = sourceRectangle.Value.Height;
+			}
+			else
+			{
+				srcX = 0;
+				srcY = 0;
+				srcW = Backbuffer.Width;
+				srcH = Backbuffer.Height;
+			}
+			if (destinationRectangle.HasValue)
+			{
+				dstX = destinationRectangle.Value.X;
+				dstY = destinationRectangle.Value.Y;
+				dstW = destinationRectangle.Value.Width;
+				dstH = destinationRectangle.Value.Height;
+			}
+			else
+			{
+				dstX = 0;
+				dstY = 0;
+				SDL.SDL_Vulkan_GetDrawableSize(window, out dstW, out dstH);
+			}
+
+			// Get the next drawable
+			//imageIndex = device.AcquireNextImageKHR(_swapchainKhr, ulong.MaxValue, acquireSemaphore);
+			//currentImage = images[imageIndex];
+
+			// "Blit" the backbuffer to the drawable
+			/*
+			BlitFramebuffer(
+				currentAttachments[0],
+				new Rectangle(srcX, srcY, srcW, srcH),
+				currentImage,
+				new Rectangle(dstX, dstY, dstW, dstH)
+			);
+			*/
+
+
+
 			// todo: what to do if sourceRectangle or destinationRectangle are not null. Also what to do with windowhandle
 
 			//_commandBuffer.CmdEndRenderPass();
@@ -1506,6 +1564,99 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			// We're done here.
 			frameInProgress = false;
+		}
+
+		public static void GetDrawableSize(
+			IntPtr window,
+			out int w,
+			out int h
+		) {
+			SDL.SDL_Vulkan_GetDrawableSize(window, out w, out h);
+		}
+
+		private void BlitFramebuffer(
+			Image srcTex,
+			Rectangle srcRect,
+			Image dstTex,
+			Rectangle dstRect
+		) {
+			if (	srcRect.Width == 0 ||
+			        srcRect.Height == 0 ||
+			        dstRect.Width == 0 ||
+			        dstRect.Height == 0	)
+			{
+				// Enjoy that bright red window!
+				return;
+			}
+
+			// maybe actually blit?
+			/*
+			 * _commandBuffer.CmdBlitImage(
+				currentAttachments[0], ImageLayout.General, images, ImageLayout.General, PresentRegionKhr, filter);
+			 */
+
+			// Update cached vertex buffer if needed
+			if (fauxBackbufferDestBounds != dstRect || fauxBackbufferSizeChanged)
+			{
+				fauxBackbufferDestBounds = dstRect;
+				fauxBackbufferSizeChanged = false;
+
+				// Scale the coordinates to (-1, 1)
+				int dw, dh;
+				SDL.SDL_Vulkan_GetDrawableSize(window, out dw, out dh);
+				//SDL_Vulkan_GetDrawableSize(window, &w, &h);
+				//GetDrawableSize(layer, out dw, out dh);
+				float sx = -1 + (dstRect.X / (float) dw);
+				float sy = -1 + (dstRect.Y / (float) dh);
+				float sw = (dstRect.Width / (float) dw) * 2;
+				float sh = (dstRect.Height / (float) dh) * 2;
+
+				// Update the vertex buffer contents
+				float[] data = new float[]
+				{
+					sx, sy,			0, 0,
+					sx + sw, sy,		1, 0,
+					sx + sw, sy + sh,	1, 1,
+					sx, sy + sh,		0, 1
+				};
+				GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+				//device.MapMemory()
+				/*
+				SDL.SDL_memcpy(
+					mtlGetBufferContentsPtr(fauxBackbufferDrawBuffer),
+					handle.AddrOfPinnedObject(),
+					(IntPtr) (16 * sizeof(float))
+				);
+				*/
+				handle.Free();
+			}
+
+			// Render the source texture to the destination texture
+			/*
+			IntPtr backbufferRenderPass = mtlMakeRenderPassDescriptor();
+			mtlSetAttachmentTexture(
+				mtlGetColorAttachment(backbufferRenderPass, 0),
+				dstTex
+			);
+			IntPtr rce = mtlMakeRenderCommandEncoder(
+				commandBuffer,
+				backbufferRenderPass
+			);
+			mtlSetRenderPipelineState(rce, fauxBackbufferRenderPipeline);
+			mtlSetVertexBuffer(rce, fauxBackbufferDrawBuffer, 0, 0);
+			mtlSetFragmentTexture(rce, srcTex, 0);
+			mtlSetFragmentSamplerState(rce, fauxBackbufferSamplerState, 0);
+			mtlDrawIndexedPrimitives(
+				rce,
+				MTLPrimitiveType.Triangle,
+				6,
+				MTLIndexType.UInt16,
+				fauxBackbufferDrawBuffer,
+				16 * sizeof(float),
+				1
+			);
+			mtlEndEncoding(rce);
+			*/
 		}
 
 		public void SetStringMarker(string text)
@@ -1927,11 +2078,11 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Render Target Cache Variables
 
-		private readonly IntPtr[] currentAttachments;
+		private readonly Image[] currentAttachments;
 		private readonly Format[] currentColorFormats;
-		private readonly IntPtr[] currentMSAttachments;
+		private readonly Image[] currentMSAttachments;
 		private readonly CubeMapFace[] currentAttachmentSlices;
-		private IntPtr currentDepthStencilBuffer;
+		private Image currentDepthStencilBuffer;
 		private DepthFormat currentDepthFormat;
 		private int currentSampleCount;
 
@@ -1939,7 +2090,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region SetRenderTargetsMethods
 
-		public void SetRenderTargets(RenderTargetBinding[] renderTargets, IGLRenderbuffer renderbuffer,
+		public void SetRenderTargets(
+			RenderTargetBinding[] renderTargets,
+			IGLRenderbuffer renderbuffer,
 			DepthFormat depthFormat)
 		{
 			// Perform any pending clears before switching render targets
@@ -1976,21 +2129,21 @@ namespace Microsoft.Xna.Framework.Graphics
 				else
 				{
 					VulkanTexture tex = renderTargets[i].RenderTarget.texture as VulkanTexture;
-					currentAttachments[i] = (IntPtr)tex.Handle;//todo
+					currentAttachments[i] = tex.Image;//todo
 					currentColorFormats[i] = XNAToVK.TextureFormat[(int) tex.Format];
 					currentSampleCount = 0;
 				}
 			}
 
 			// Update depth stencil buffer
-			IntPtr handle = IntPtr.Zero;
+			Image handle = null;
 			if (renderbuffer != null)
 			{
 				handle = (renderbuffer as VulkanRenderbuffer).Handle;
 			}
 			currentDepthStencilBuffer = handle;
 			currentDepthFormat = (
-				(currentDepthStencilBuffer == IntPtr.Zero) ?
+				(currentDepthStencilBuffer == null) ?
 					DepthFormat.None :
 					depthFormat
 			);
@@ -2000,12 +2153,12 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			for (int i = 0; i < currentAttachments.Length; i += 1)
 			{
-				currentAttachments[i] = IntPtr.Zero;
+				currentAttachments[i] = null;
 				currentColorFormats[i] = Format.Undefined;
-				currentMSAttachments[i] = IntPtr.Zero;
+				currentMSAttachments[i] = null;
 				currentAttachmentSlices[i] = (CubeMapFace) 0;
 			}
-			currentDepthStencilBuffer = IntPtr.Zero;
+			currentDepthStencilBuffer = null;
 			currentDepthFormat = DepthFormat.None;
 			currentSampleCount = 0;
 		}
@@ -2192,7 +2345,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			*/
 			for (int i = 0; i < Textures.Length; i += 1)
 			{
-				if (tex.Handle == Textures[i].Handle)
+				if (tex.Image == Textures[i].Image)
 				{
 					Textures[i] = VulkanTexture.NullTexture;
 					textureNeedsUpdate[i] = true;
@@ -2468,16 +2621,61 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
-		public IGLRenderbuffer GenRenderbuffer(int width, int height, SurfaceFormat format, int multiSampleCount,
-			IGLTexture texture)
-		{
+		public IGLRenderbuffer GenRenderbuffer(
+			int width,
+			int height,
+			SurfaceFormat format,
+			int multiSampleCount,
+			IGLTexture texture
+		) {
 			Format pixelFormat = XNAToVK.TextureFormat[(int) format];
 			int sampleCount = GetCompatibleSampleCount(multiSampleCount);
 
-			throw new NotImplementedException();
+			// Generate a multisample texture
+			/*
+			IntPtr desc = mtlMakeTexture2DDescriptor(
+				pixelFormat,
+				width,
+				height,
+				false
+			);
+			mtlSetStorageMode(
+				desc,
+				MTLStorageMode.Private
+			);
+			mtlSetTextureUsage(
+				desc,
+				MTLTextureUsage.RenderTarget
+			);
+			mtlSetTextureType(
+				desc,
+				MTLTextureType.Multisample2D
+			);
+			mtlSetTextureSampleCount(
+				desc,
+				sampleCount
+			);
+			IntPtr multisampleTexture = mtlNewTextureWithDescriptor(
+				device,
+				desc
+			);
+			*/
+
+			// We're done!
+			return new VulkanRenderbuffer(
+				(texture as VulkanTexture).Image,
+				pixelFormat,
+				sampleCount,
+				null //todo
+			);
 		}
 
-		public IGLRenderbuffer GenRenderbuffer(int width, int height, DepthFormat format, int multiSampleCount)
+		public IGLRenderbuffer GenRenderbuffer(
+			int width,
+			int height,
+			DepthFormat format,
+			int multiSampleCount
+			)
 		{
 			Format pixelFormat = XNAToVK.TextureFormat[(int) format];
 			int sampleCount = GetCompatibleSampleCount(multiSampleCount);
@@ -2519,10 +2717,10 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			// We're done!
 			return new VulkanRenderbuffer(
-				IntPtr.Zero,
+				colorImage,
 				pixelFormat,
 				sampleCount,
-				IntPtr.Zero
+				null
 			);
 		}
 
