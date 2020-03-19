@@ -13,7 +13,8 @@ namespace Microsoft.Xna.Framework.Graphics
             IntPtr vertexData,
             int vertexCount,
             int vertexOffset
-        ) {
+        )
+        {
             if (vertexOffset != 0)
             {
                 throw new Exception("Failed to implement this properly. Check metal device.");
@@ -42,7 +43,10 @@ namespace Microsoft.Xna.Framework.Graphics
             _commandBuffer.CmdBindVertexBuffer(0, vertexBuffer, 0);
         }
 
-        public void DrawUserPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
+        public void DrawUserPrimitives(
+            PrimitiveType primitiveType,
+            IntPtr vertexData,
+            int vertexOffset,
             int primitiveCount)
         {
             // Bind the vertex buffer
@@ -57,12 +61,18 @@ namespace Microsoft.Xna.Framework.Graphics
             );
 
             // Draw!
-            _commandBuffer.CmdDraw((uint)numVerts, 1, 0, 0);
+            _commandBuffer.CmdDraw((uint) numVerts, 1, 0, 0);
         }
 
-        public void DrawUserIndexedPrimitives(PrimitiveType primitiveType, IntPtr vertexData, int vertexOffset,
+        public void DrawUserIndexedPrimitives(
+            PrimitiveType primitiveType,
+            IntPtr vertexData,
+            int vertexOffset,
             int numVertices,
-            IntPtr indexData, int indexOffset, IndexElementSize indexElementSize, int primitiveCount)
+            IntPtr indexData,
+            int indexOffset,
+            IndexElementSize indexElementSize,
+            int primitiveCount)
         {
             // Bind the vertex buffer
             BindUserVertexBuffer(

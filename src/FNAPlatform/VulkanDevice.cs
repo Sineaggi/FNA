@@ -1242,6 +1242,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#endregion
 
+		private Extent2D swapChainExtent;
+
 		private void setupSwapchain(SurfaceCapabilitiesKhr surfaceCaps, uint width, uint height)
 		{
 
@@ -1270,17 +1272,20 @@ namespace Microsoft.Xna.Framework.Graphics
 			//var format = Format.R8G8B8A8Unorm;
 			var format = Format.B8G8R8A8Unorm;
 
+			var extent = new Extent2D
+			{
+				Width = width,
+				Height = height,
+			};
+			swapChainExtent = extent;
+
 			_swapchainKhr = device.CreateSwapchainKHR(new SwapchainCreateInfoKhr
 			{
 				Surface = surface,
 				MinImageCount = Math.Max(2, surfaceCaps.MinImageCount),
 				ImageFormat = format, // todo: get this correctly
 				ImageColorSpace = ColorSpaceKhr.SrgbNonlinear, // set this
-				ImageExtent = new Extent2D
-				{
-					Width = width,
-					Height = height,
-				},
+				ImageExtent = extent,
 				ImageArrayLayers = 1,
 				ImageUsage = ImageUsageFlags.ColorAttachment,
 				QueueFamilyIndexCount = 1,
@@ -1290,6 +1295,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				PresentMode = PresentModeKhr.Fifo,
 				OldSwapchain = oldSwapchain,
 			});
+
+			var depthFormat = Format.D16Unorm;
 
 			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{
@@ -1305,12 +1312,25 @@ namespace Microsoft.Xna.Framework.Graphics
 						StencilStoreOp = AttachmentStoreOp.DontCare,
 						InitialLayout = ImageLayout.ColorAttachmentOptimal,
 						FinalLayout = ImageLayout.ColorAttachmentOptimal,
+					},
+					new AttachmentDescription
+					{
+						Format = depthFormat,
+						Samples = SampleCountFlags.Count1,
+						LoadOp = AttachmentLoadOp.Clear,
+						StoreOp = AttachmentStoreOp.DontCare,
+						StencilLoadOp = AttachmentLoadOp.DontCare,
+						StencilStoreOp = AttachmentStoreOp.DontCare,
+						InitialLayout = ImageLayout.Undefined,
+						FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
 					}
 				},
 				Subpasses = new[]
 				{
 					new SubpassDescription
 					{
+						//needed?
+						//PipelineBindPoint = PipelineBindPoint.Graphics,
 						ColorAttachments = new[]
 						{
 							new AttachmentReference
@@ -1318,9 +1338,24 @@ namespace Microsoft.Xna.Framework.Graphics
 								Attachment = 0,
 								Layout = ImageLayout.ColorAttachmentOptimal,
 							}
+						},
+						DepthStencilAttachment = new AttachmentReference
+						{
+							Attachment = 1,
+							Layout = ImageLayout.DepthStencilAttachmentOptimal,
 						}
 					}
 				},
+				Dependencies = new [] {new SubpassDependency
+				{
+					SrcSubpass = uint.MaxValue,
+					DstSubpass = 0,
+					SrcStageMask = PipelineStageFlags.ColorAttachmentOutput,
+					SrcAccessMask = 0,
+					DstStageMask = PipelineStageFlags.ColorAttachmentOutput,
+					DstAccessMask = AccessFlags.ColorAttachmentWrite,
+
+				}}
 			});
 
 			// todo: check h, w against surfaceCaps
@@ -1332,11 +1367,23 @@ namespace Microsoft.Xna.Framework.Graphics
 				SubresourceRange = new ImageSubresourceRange
 					{AspectMask = ImageAspectFlags.Color, LevelCount = 1, LayerCount = 1}
 			})).ToArray();
+
+			createImage(swapChainExtent.Width, swapChainExtent.Height, depthFormat, ImageTiling.Optimal, ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out depthImage, out depthImageMemory);
+			depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
+
 			_framebuffers = imageViews.Select(imageView => device.CreateFramebuffer(new FramebufferCreateInfo
 			{
-				RenderPass = renderPass, Attachments = new[] {imageView}, Width = width, Height = height,
+				RenderPass = renderPass,
+				Attachments = new[] {imageView, depthImageView },
+				Width = swapChainExtent.Width,
+				Height = swapChainExtent.Height,
 				Layers = 1
 			})).ToArray();
+
+			/*
+			 *         createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+			 */
 
 			acquireSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
 			releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
@@ -1344,6 +1391,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			Console.WriteLine("swp" + _swapchainKhr);
 
 		}
+
+		private Image depthImage;
+		private DeviceMemory depthImageMemory;
+		private ImageView depthImageView;
 
 		public void Dispose()
 		{
@@ -1441,6 +1492,14 @@ namespace Microsoft.Xna.Framework.Graphics
 					Color = new ClearColorValue
 					{
 						Float32 = new[] {clearColor.X, clearColor.Y, clearColor.Z, clearColor.W},
+					}
+				},
+				new ClearValue
+				{
+					DepthStencil = new ClearDepthStencilValue
+					{
+						Depth = 1.0f,
+						Stencil = 0,
 					}
 				}
 			};
@@ -2567,8 +2626,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				Tiling = tiling,
 				InitialLayout = ImageLayout.Undefined,
 				Usage = usage,
-				SharingMode = SharingMode.Exclusive,
 				Samples = SampleCountFlags.Count1,
+				SharingMode = SharingMode.Exclusive,
 			});
 
 			var memRequirements = device.GetImageMemoryRequirements(image);
@@ -2578,6 +2637,23 @@ namespace Microsoft.Xna.Framework.Graphics
 				MemoryTypeIndex = findMemoryType(memRequirements.MemoryTypeBits, properties),
 			});
 			device.BindImageMemory(image, imageMemory, 0);
+		}
+
+		ImageView createImageView(Image image, Format format, ImageAspectFlags aspectFlags) {
+			return device.CreateImageView(new ImageViewCreateInfo
+			{
+				Image = image,
+				ViewType = ImageViewType.View2D,
+				Format = format,
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = aspectFlags,
+					BaseMipLevel = 0,
+					LevelCount = 1,
+					BaseArrayLayer = 0,
+					LayerCount = 1,
+				}
+			});
 		}
 
 		public void SetTextureData3D(IGLTexture texture, SurfaceFormat format, int level, int left, int top, int right,
@@ -2794,7 +2870,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			DeleteBuffer(buffer);
 		}
 
-		public void SetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int dataLength, SetDataOptions options)
+		public void SetVertexBufferData(
+			IGLBuffer buffer,
+			int offsetInBytes,
+			IntPtr data,
+			int dataLength,
+			SetDataOptions options)
 		{
 			(buffer as VulkanBuffer).SetData(
 				offsetInBytes,
@@ -2802,27 +2883,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				dataLength,
 				options
 			);
-			/*
-			var vulkanBuffer = (buffer as VulkanBuffer);
-			var vertexBuffer = vulkanBuffer.Buffer;
-
-			DeviceSize bufferSize = (uint)vulkanBuffer.BufferSize;
-			createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
-			var dst = device.MapMemory(stagingBufferMemory, 0, bufferSize, 0);
-			SDL.SDL_memcpy(dst, data, (IntPtr)dataLength);
-			device.UnmapMemory(stagingBufferMemory);
-
-			//createBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer, MemoryPropertyFlags.DeviceLocal, out var vertexBuffer, out var vertexBufferMemory);
-
-			copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
-
-			device.DestroyBuffer(stagingBuffer);
-			device.FreeMemory(stagingBufferMemory);
-
-			//var vulkanBuffer = (buffer as VulkanBuffer);
-			//vulkanBuffer.Buffer = vertexBuffer;
-			//vulkanBuffer.BufferMemory = vertexBufferMemory;
-			*/
 		}
 
 		public void GetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int startIndex, int elementCount,
@@ -2941,7 +3001,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			endSingleTimeCommands(commandBuffer);
 		}
 
-		public void SetIndexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int dataLength, SetDataOptions options)
+		public void SetIndexBufferData(
+			IGLBuffer buffer,
+			int offsetInBytes,
+			IntPtr data,
+			int dataLength,
+			SetDataOptions options)
 		{
 			(buffer as VulkanBuffer).SetData(
 				offsetInBytes,
@@ -2949,28 +3014,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				dataLength,
 				options
 				);
-			/*
-			VulkanBuffer buf = buffer as VulkanBuffer;
-
-			// todo: is datalength already correct?
-			DeviceSize bufferSize = dataLength;
-
-			Buffer stagingBuffer;
-			DeviceMemory stagingBufferMemory;
-			createBuffer(bufferSize, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out stagingBuffer, out stagingBufferMemory);
-
-			// return; // todo: returning early as the next function fails. not sure why.
-
-			var dst = device.MapMemory(stagingBufferMemory, offsetInBytes, bufferSize, 0);
-			var len = (IntPtr) dataLength;
-			SDL.SDL_memcpy(dst, data, len);
-			device.UnmapMemory(stagingBufferMemory);
-
-			copyBuffer(stagingBuffer, buf.Buffer, bufferSize);
-
-			device.DestroyBuffer(stagingBuffer);
-			device.FreeMemory(stagingBufferMemory);
-			*/
 		}
 
 		struct ShaderBundle
@@ -3662,9 +3705,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				unsafe
 				{
-					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
-					var size = vertexUniformBuffer->size;
-					var bufferPtr = vertexUniformBuffer->buffer;
+					var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) fUniform;
+					var size = fragmentUniformBuffer->size;
+					var bufferPtr = fragmentUniformBuffer->buffer;
 					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
 					uniformBufferSize = size;
 				};
@@ -3698,9 +3741,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				unsafe
 				{
-					var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) vUniform;
-					var size = vertexUniformBuffer->size;
-					var bufferPtr = vertexUniformBuffer->buffer;
+					var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) fUniform;
+					var size = fragmentUniformBuffer->size;
+					var bufferPtr = fragmentUniformBuffer->buffer;
 					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
 					uniformBufferSize = size;
 				};
