@@ -3502,7 +3502,14 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					RasterizationSamples = SampleCountFlags.Count1,
 				},
-				DepthStencilState = new PipelineDepthStencilStateCreateInfo { },
+				DepthStencilState = new PipelineDepthStencilStateCreateInfo
+				{
+					DepthTestEnable = true,
+					DepthWriteEnable = true,
+					DepthCompareOp = CompareOp.Less,
+					DepthBoundsTestEnable = false,
+					StencilTestEnable = false,
+				},
 				ColorBlendState = new PipelineColorBlendStateCreateInfo
 				{
 					Attachments = new[]
