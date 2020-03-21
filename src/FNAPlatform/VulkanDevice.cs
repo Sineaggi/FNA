@@ -1,13 +1,16 @@
 #region License
+
 /* FNA - XNA4 Reimplementation for Desktop Platforms
  * Copyright 2009-2019 Ethan Lee and the MonoGame Team
  *
  * Released under the Microsoft Public License.
  * See LICENSE for details.
  */
+
 #endregion
 
 #region Using Statements
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -133,7 +136,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				Image multiSampleHandle
 			)
 			{
-
 			}
 
 			public VulkanRenderbuffer(
@@ -457,7 +459,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public static readonly BlendFactor[] BlendMode = new BlendFactor[]
 			{
-
 				Vulkan.BlendFactor.One, // Blend.One
 				Vulkan.BlendFactor.Zero, // Blend.Zero
 				Vulkan.BlendFactor.SrcColor, // Blend.SourceColor
@@ -529,7 +530,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				CompareOp.Greater, // CompareFunction.Greater
 				CompareOp.NotEqual // CompareFunction.NotEqual
 			};
-
 
 
 			public static readonly StencilOp[] StencilOp = new StencilOp[]
@@ -784,11 +784,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private class VulkanQuery : IGLQuery
 		{
-			public uint Handle
-			{
-				get;
-				private set;
-			}
+			public uint Handle { get; private set; }
 
 			public VulkanQuery(uint handle)
 			{
@@ -810,10 +806,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public Color BlendFactor
 		{
-			get
-			{
-				return blendColor;
-			}
+			get { return blendColor; }
 			set
 			{
 				if (value != blendColor)
@@ -825,12 +818,10 @@ namespace Microsoft.Xna.Framework.Graphics
 		}
 
 		private int multisampleMask = -1; // AKA 0xFFFFFFFF
+
 		public int MultiSampleMask
 		{
-			get
-			{
-				return multisampleMask;
-			}
+			get { return multisampleMask; }
 			set
 			{
 				multisampleMask = value;
@@ -843,12 +834,10 @@ namespace Microsoft.Xna.Framework.Graphics
 		#region Stencil State Variables
 
 		private int stencilRef = 0;
+
 		public int ReferenceStencil
 		{
-			get
-			{
-				return stencilRef;
-			}
+			get { return stencilRef; }
 			set
 			{
 				if (value != stencilRef)
@@ -1187,14 +1176,12 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 
 
-
 				if (!bufferFeatures.HasFlag(FormatFeatureFlags.ColorAttachment))
 				{
 					int x = 2;
 				}
 				else
 				{
-
 				}
 			}
 
@@ -1328,7 +1315,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private void setupSwapchain(SurfaceCapabilitiesKhr surfaceCaps, uint width, uint height)
 		{
-
 			SwapchainKhr oldSwapchain = null;
 
 			CompositeAlphaFlagsKhr surfaceComposite;
@@ -1387,7 +1373,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			//todo: potentially set dynamic state
 			var kk = new PipelineDynamicStateCreateInfo
 			{
-				DynamicStates = new []
+				DynamicStates = new[]
 				{
 					DynamicState.Viewport,
 				}
@@ -1471,7 +1457,9 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			})).ToArray();
 
-			createImage(swapChainExtent.Width, swapChainExtent.Height, depthFormat, ImageTiling.Optimal, ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out depthImage, out depthImageMemory);
+			createImage(swapChainExtent.Width, swapChainExtent.Height, depthFormat, ImageTiling.Optimal,
+				ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out depthImage,
+				out depthImageMemory);
 			depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
 
 			_framebuffers = imageViews.Select(imageView => device.CreateFramebuffer(new FramebufferCreateInfo
@@ -1492,7 +1480,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
 
 			Console.WriteLine("swp" + _swapchainKhr);
-
 		}
 
 		private Image depthImage;
@@ -1637,6 +1624,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				srcW = Backbuffer.Width;
 				srcH = Backbuffer.Height;
 			}
+
 			if (destinationRectangle.HasValue)
 			{
 				dstX = destinationRectangle.Value.X;
@@ -1666,7 +1654,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			*/
 
 
-
 			// todo: what to do if sourceRectangle or destinationRectangle are not null. Also what to do with windowhandle
 
 			//_commandBuffer.CmdEndRenderPass();
@@ -1694,7 +1681,6 @@ namespace Microsoft.Xna.Framework.Graphics
 					Swapchains = new[] {_swapchainKhr},
 					ImageIndices = new[] {imageIndex}
 				});
-
 			}
 			catch (ResultException e)
 			{
@@ -1708,7 +1694,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 				else
 				{
-
 				}
 
 				throw new Exception("Failed to present. Needs work.", e);
@@ -1732,7 +1717,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			IntPtr window,
 			out int w,
 			out int h
-		) {
+		)
+		{
 			SDL.SDL_Vulkan_GetDrawableSize(window, out w, out h);
 		}
 
@@ -1741,11 +1727,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			Rectangle srcRect,
 			Image dstTex,
 			Rectangle dstRect
-		) {
-			if (	srcRect.Width == 0 ||
-			        srcRect.Height == 0 ||
-			        dstRect.Width == 0 ||
-			        dstRect.Height == 0	)
+		)
+		{
+			if (srcRect.Width == 0 ||
+			    srcRect.Height == 0 ||
+			    dstRect.Width == 0 ||
+			    dstRect.Height == 0)
 			{
 				// Enjoy that bright red window!
 				return;
@@ -1776,10 +1763,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				// Update the vertex buffer contents
 				float[] data = new float[]
 				{
-					sx, sy,			0, 0,
-					sx + sw, sy,		1, 0,
-					sx + sw, sy + sh,	1, 1,
-					sx, sy + sh,		0, 1
+					sx, sy, 0, 0,
+					sx + sw, sy, 1, 0,
+					sx + sw, sy + sh, 1, 1,
+					sx, sy + sh, 0, 1
 				};
 				GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
 				//device.MapMemory()
@@ -1840,11 +1827,12 @@ namespace Microsoft.Xna.Framework.Graphics
 				array_vec4 = i;
 				array_ivec4 = i;
 				array_bool = i;
-				samplers = new[] { i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, };
+				samplers = new[] {i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i,};
 			}
 		}
 
-		unsafe int compileShader(MojoShader.MOJOSHADER_parseData* pd, int base_location, out CurrentAttachmentState state)
+		unsafe int compileShader(MojoShader.MOJOSHADER_parseData* pd, int base_location,
+			out CurrentAttachmentState state)
 		{
 			var data_len = pd->output_len - Marshal.SizeOf(typeof(MojoShader.SpirvPatchTable));
 			var output = ((int*) pd->output);
@@ -1866,7 +1854,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				array_vec4 = getBound(table->array_vec4),
 				array_ivec4 = getBound(table->array_ivec4),
 				array_bool = getBound(table->array_bool),
-				samplers = new []
+				samplers = new[]
 				{
 					getBound(table->sampler1),
 					getBound(table->sampler2),
@@ -1890,7 +1878,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			return table->location_count;
 		}
 
-		unsafe void getSwigity(IntPtr vshader, IntPtr fshader, out CurrentAttachmentState vstate, out CurrentAttachmentState fstate)
+		unsafe void getSwigity(IntPtr vshader, IntPtr fshader, out CurrentAttachmentState vstate,
+			out CurrentAttachmentState fstate)
 		{
 			int baseLocation = 0;
 
@@ -1919,7 +1908,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 		}
 
-	void getMaybeCachedShaders(out ShaderModule fshader, out String fname, out ShaderModule vshader, out String vname)
+		void getMaybeCachedShaders(out ShaderModule fshader, out String fname, out ShaderModule vshader,
+			out String vname)
 		{
 			var fieldInfo = typeof(ShaderModule).GetField("m", BindingFlags.NonPublic | BindingFlags.Instance);
 			Debug.Assert(fieldInfo != null);
@@ -1968,34 +1958,37 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private List<VulkanBuffer> Buffers = new List<VulkanBuffer>();
 
-		DescriptorSet [] CreateDescriptorSets ()
+		DescriptorSet[] CreateDescriptorSets()
 		{
-			var ubo = new DescriptorPoolSize {
+			var ubo = new DescriptorPoolSize
+			{
 				Type = DescriptorType.UniformBuffer,
 				DescriptorCount = 1
 			};
-			var sampler = new DescriptorPoolSize {
+			var sampler = new DescriptorPoolSize
+			{
 				Type = DescriptorType.CombinedImageSampler,
 				DescriptorCount = 1
 			};
-			var descriptorPoolCreateInfo = new DescriptorPoolCreateInfo {
-				PoolSizes = new DescriptorPoolSize [] { ubo, sampler },
+			var descriptorPoolCreateInfo = new DescriptorPoolCreateInfo
+			{
+				PoolSizes = new DescriptorPoolSize[] {ubo, sampler},
 				MaxSets = 1
 			};
 			// todo: delete the fuck out of this
-			var descriptorPool = device.CreateDescriptorPool (descriptorPoolCreateInfo);
+			var descriptorPool = device.CreateDescriptorPool(descriptorPoolCreateInfo);
 
-			var descriptorSetAllocateInfo = new DescriptorSetAllocateInfo {
-				SetLayouts = new DescriptorSetLayout [] { _setLayout },
+			var descriptorSetAllocateInfo = new DescriptorSetAllocateInfo
+			{
+				SetLayouts = new DescriptorSetLayout[] {_setLayout},
 				DescriptorPool = descriptorPool
 			};
 
-			return device.AllocateDescriptorSets (descriptorSetAllocateInfo);
+			return device.AllocateDescriptorSets(descriptorSetAllocateInfo);
 		}
 
 		private uint getMemoryTypeIndex(uint memoryTypeBits, MemoryPropertyFlags properties)
 		{
-
 			for (uint i = 0; i < _deviceMemoryProperties.MemoryTypeCount; i++)
 			{
 				if (Convert.ToBoolean(memoryTypeBits & 1))
@@ -2006,6 +1999,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					}
 				}
 			}
+
 			throw new Exception("Could not find a suitable memory type!");
 		}
 
@@ -2120,8 +2114,8 @@ namespace Microsoft.Xna.Framework.Graphics
 							},
 							Extent = new Extent2D
 							{
-								Width = (uint)currentAttachmentWidth,
-								Height = (uint)currentAttachmentHeight,
+								Width = (uint) currentAttachmentWidth,
+								Height = (uint) currentAttachmentHeight,
 							},
 						});
 				}
@@ -2138,8 +2132,8 @@ namespace Microsoft.Xna.Framework.Graphics
 							},
 							Extent = new Extent2D
 							{
-								Width = (uint)scissorRectangle.Width,
-								Height = (uint)scissorRectangle.Height,
+								Width = (uint) scissorRectangle.Width,
+								Height = (uint) scissorRectangle.Height,
 							},
 						});
 				}
@@ -2180,7 +2174,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			return;
 			if (_commandBuffer != null && !needNewRenderPass)
 			{
-
 				/*
 				mtlSetTriangleFillMode(
 					renderCommandEncoder,
@@ -2227,8 +2220,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			realDepthBias *= XNAToVK.DepthBiasScale(
 				GetDepthFormat(currentDepthFormat)
 			);
-			if (	realDepthBias != depthBias ||
-			        rasterizerState.SlopeScaleDepthBias != slopeScaleDepthBias	)
+			if (realDepthBias != depthBias ||
+			    rasterizerState.SlopeScaleDepthBias != slopeScaleDepthBias)
 			{
 				depthBias = realDepthBias;
 				slopeScaleDepthBias = rasterizerState.SlopeScaleDepthBias;
@@ -2256,6 +2249,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					Textures[index] = VulkanTexture.NullTexture;
 					textureNeedsUpdate[index] = true;
 				}
+
 				if (Samplers[index] == IntPtr.Zero)
 				{
 					/* Some shaders require non-null samplers
@@ -2265,18 +2259,19 @@ namespace Microsoft.Xna.Framework.Graphics
 					Samplers[index] = FetchSamplerState(sampler, false);
 					samplerNeedsUpdate[index] = true;
 				}
+
 				return;
 			}
 
 			VulkanTexture tex = texture.texture as VulkanTexture;
-			if (	tex == Textures[index] &&
-			        sampler.AddressU == tex.WrapS &&
-			        sampler.AddressV == tex.WrapT &&
-			        sampler.AddressW == tex.WrapR &&
-			        sampler.Filter == tex.Filter &&
-			        sampler.MaxAnisotropy == tex.Anisotropy &&
-			        sampler.MaxMipLevel == tex.MaxMipmapLevel &&
-			        sampler.MipMapLevelOfDetailBias == tex.LODBias	)
+			if (tex == Textures[index] &&
+			    sampler.AddressU == tex.WrapS &&
+			    sampler.AddressV == tex.WrapT &&
+			    sampler.AddressW == tex.WrapR &&
+			    sampler.Filter == tex.Filter &&
+			    sampler.MaxAnisotropy == tex.Anisotropy &&
+			    sampler.MaxMipLevel == tex.MaxMipmapLevel &&
+			    sampler.MipMapLevelOfDetailBias == tex.LODBias)
 			{
 				// Nothing's changing, forget it.
 				return;
@@ -2334,11 +2329,13 @@ namespace Microsoft.Xna.Framework.Graphics
 				clearColor = color;
 				shouldClearColor = true;
 			}
+
 			if (clearDepth)
 			{
 				this.clearDepth = depth;
 				shouldClearDepth = true;
 			}
+
 			if (clearStencil)
 			{
 				this.clearStencil = stencil;
@@ -2401,7 +2398,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				else
 				{
 					VulkanTexture tex = renderTargets[i].RenderTarget.texture as VulkanTexture;
-					currentAttachments[i] = tex.Image;//todo
+					currentAttachments[i] = tex.Image; //todo
 					currentColorFormats[i] = XNAToVK.TextureFormat[(int) tex.Format];
 					currentSampleCount = 0;
 				}
@@ -2413,11 +2410,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				handle = (renderbuffer as VulkanRenderbuffer).Handle;
 			}
+
 			currentDepthStencilBuffer = handle;
 			currentDepthFormat = (
-				(currentDepthStencilBuffer == null) ?
-					DepthFormat.None :
-					depthFormat
+				(currentDepthStencilBuffer == null) ? DepthFormat.None : depthFormat
 			);
 		}
 
@@ -2430,6 +2426,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				currentMSAttachments[i] = null;
 				currentAttachmentSlices[i] = (CubeMapFace) 0;
 			}
+
 			currentDepthStencilBuffer = null;
 			currentDepthFormat = DepthFormat.None;
 			currentSampleCount = 0;
@@ -2510,14 +2507,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			var textureImage = device.CreateImage(new ImageCreateInfo
 			{
 				ImageType = ImageType.Image2D,
-				Extent = new Extent3D {
+				Extent = new Extent3D
+				{
 					Depth = 1,
-					Height = (uint)height,
-					Width = (uint)width,
+					Height = (uint) height,
+					Width = (uint) width,
 				},
-				MipLevels = (uint)levelCount,
+				MipLevels = (uint) levelCount,
 				ArrayLayers = 1,
-				Format = XNAToVK.TextureFormat[(uint)format],
+				Format = XNAToVK.TextureFormat[(uint) format],
 				Tiling = ImageTiling.Optimal, // todo: linear or optimal?
 				InitialLayout = ImageLayout.Undefined,
 				Usage = usageFlags, // todo: use isRenderTarget here?
@@ -2534,7 +2532,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				format,
 				levelCount,
 				isRenderTarget
-				)
+			)
 			{
 				Image = textureImage,
 				ImageMemory = textureImageMemory,
@@ -2547,7 +2545,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					{
 						AspectMask = ImageAspectFlags.Color,
 						BaseMipLevel = 0,
-						LevelCount = (uint)levelCount,
+						LevelCount = (uint) levelCount,
 						BaseArrayLayer = 0,
 						LayerCount = 1,
 					},
@@ -2578,14 +2576,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			var textureImage = device.CreateImage(new ImageCreateInfo
 			{
 				ImageType = ImageType.Image3D,
-				Extent = new Extent3D {
-					Depth = (uint)depth,
-					Height = (uint)height,
-					Width = (uint)width,
+				Extent = new Extent3D
+				{
+					Depth = (uint) depth,
+					Height = (uint) height,
+					Width = (uint) width,
 				},
-				MipLevels = (uint)levelCount,
+				MipLevels = (uint) levelCount,
 				ArrayLayers = 1,
-				Format = XNAToVK.TextureFormat[(uint)format],
+				Format = XNAToVK.TextureFormat[(uint) format],
 				Tiling = ImageTiling.Linear,
 				InitialLayout = ImageLayout.Undefined,
 				Usage = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled,
@@ -2623,6 +2622,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					textureNeedsUpdate[i] = true;
 				}
 			}
+
 			tex.Dispose();
 		}
 
@@ -2656,7 +2656,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			graphicsQueue.Submit(new SubmitInfo
 			{
-				CommandBuffers = new []{commandBuffer},
+				CommandBuffers = new[] {commandBuffer},
 			});
 			graphicsQueue.WaitIdle();
 
@@ -2693,14 +2693,15 @@ namespace Microsoft.Xna.Framework.Graphics
 				image = device.CreateImage(new ImageCreateInfo
 				{
 					ImageType = ImageType.Image2D,
-					Extent = new Extent3D {
+					Extent = new Extent3D
+					{
 						Depth = 1,
-						Height = (uint)height,
-						Width = (uint)width,
+						Height = (uint) height,
+						Width = (uint) width,
 					},
 					MipLevels = 1,
 					ArrayLayers = 1,
-					Format = XNAToVK.TextureFormat[(uint)format],
+					Format = XNAToVK.TextureFormat[(uint) format],
 					Tiling = ImageTiling.Optimal, // todo: linear or optimal?
 					InitialLayout = ImageLayout.Undefined,
 					Usage = ImageUsageFlags.TransferSrc,
@@ -2723,15 +2724,19 @@ namespace Microsoft.Xna.Framework.Graphics
 				0
 			);
 			*/
-			createBuffer(dataLength, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer, out var stagingBufferMemory);
+			createBuffer(dataLength, BufferUsageFlags.TransferSrc,
+				MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer,
+				out var stagingBufferMemory);
 
 			var dst = device.MapMemory(stagingBufferMemory, 0, imageSize, 0);
 			SDL.SDL_memcpy(dst, data, (IntPtr) dataLength);
 			device.UnmapMemory(stagingBufferMemory);
 
-			transitionImageLayout(image, (uint)level, XNAToVK.TextureFormat[(int) format], ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
-			copyBufferToImage(stagingBuffer, image, (uint)level, (uint)w, (uint)h);
-			transitionImageLayout(image, (uint)level, XNAToVK.TextureFormat[(int) format], ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+			transitionImageLayout(image, (uint) level, XNAToVK.TextureFormat[(int) format], ImageLayout.Undefined,
+				ImageLayout.TransferDstOptimal);
+			copyBufferToImage(stagingBuffer, image, (uint) level, (uint) w, (uint) h);
+			transitionImageLayout(image, (uint) level, XNAToVK.TextureFormat[(int) format],
+				ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
 
 			device.DestroyBuffer(stagingBuffer);
 			device.FreeMemory(stagingBufferMemory);
@@ -2806,12 +2811,14 @@ namespace Microsoft.Xna.Framework.Graphics
 				//todo: delete temp texture
 				// We're done with the temp texture
 				//mtlSetPurgeableState(
-			//		handle,
-			//		MTLPurgeableState.Empty
-			//	);
+				//		handle,
+				//		MTLPurgeableState.Empty
+				//	);
 			}
 		}
-		void createImage(MemoryPropertyFlags properties, Image image, out DeviceMemory imageMemory) {
+
+		void createImage(MemoryPropertyFlags properties, Image image, out DeviceMemory imageMemory)
+		{
 			var memRequirements = device.GetImageMemoryRequirements(image);
 			imageMemory = device.AllocateMemory(new MemoryAllocateInfo
 			{
@@ -2822,8 +2829,9 @@ namespace Microsoft.Xna.Framework.Graphics
 		}
 
 		//todo: delete this or salvage
-		void createImage(uint width, uint height, Format format, ImageTiling tiling, ImageUsageFlags usage, MemoryPropertyFlags properties, out Image image, out DeviceMemory imageMemory) {
-
+		void createImage(uint width, uint height, Format format, ImageTiling tiling, ImageUsageFlags usage,
+			MemoryPropertyFlags properties, out Image image, out DeviceMemory imageMemory)
+		{
 			image = device.CreateImage(new ImageCreateInfo
 			{
 				ImageType = ImageType.Image2D,
@@ -2852,7 +2860,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			device.BindImageMemory(image, imageMemory, 0);
 		}
 
-		ImageView createImageView(Image image, Format format, ImageAspectFlags aspectFlags) {
+		ImageView createImageView(Image image, Format format, ImageAspectFlags aspectFlags)
+		{
 			return device.CreateImageView(new ImageViewCreateInfo
 			{
 				Image = image,
@@ -2916,7 +2925,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			SurfaceFormat format,
 			int multiSampleCount,
 			IGLTexture texture
-		) {
+		)
+		{
 			Format pixelFormat = XNAToVK.TextureFormat[(int) format];
 			int sampleCount = GetCompatibleSampleCount(multiSampleCount);
 
@@ -2968,7 +2978,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			int height,
 			DepthFormat format,
 			int multiSampleCount
-			)
+		)
 		{
 			Format pixelFormat = XNAToVK.TextureFormat[(int) format];
 			int sampleCount = GetCompatibleSampleCount(multiSampleCount);
@@ -2981,8 +2991,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				Extent = new Extent3D
 				{
 					Depth = 1,
-					Height = (uint)height,
-					Width = (uint)width,
+					Height = (uint) height,
+					Width = (uint) width,
 				},
 				MipLevels = 1,
 				ArrayLayers = 1,
@@ -3032,6 +3042,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					sampleCount / 2
 				);
 			}
+
 			return sampleCount;
 		}
 
@@ -3054,14 +3065,19 @@ namespace Microsoft.Xna.Framework.Graphics
 			return newbuf;
 		}
 
-		private void createBuffer(DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties, out Buffer buffer, out DeviceMemory bufferMemory)
+		private void createBuffer(DeviceSize size, BufferUsageFlags usage, MemoryPropertyFlags properties,
+			out Buffer buffer, out DeviceMemory bufferMemory)
 		{
 			buffer = device.CreateBuffer(new BufferCreateInfo
 				{Size = size, Usage = usage, SharingMode = SharingMode.Exclusive});
 
 			var memRequirements = device.GetBufferMemoryRequirements(buffer);
 
-			bufferMemory = device.AllocateMemory(new MemoryAllocateInfo { AllocationSize = memRequirements.Size, MemoryTypeIndex = findMemoryType(memRequirements.MemoryTypeBits, properties)});
+			bufferMemory = device.AllocateMemory(new MemoryAllocateInfo
+			{
+				AllocationSize = memRequirements.Size,
+				MemoryTypeIndex = findMemoryType(memRequirements.MemoryTypeBits, properties)
+			});
 
 			device.BindBufferMemory(buffer, bufferMemory, 0);
 		}
@@ -3077,8 +3093,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					return i;
 				}
-
 			}
+
 			throw new Exception("Could not find a supported memory type that supported " + memoryTypeBits);
 		}
 
@@ -3102,20 +3118,22 @@ namespace Microsoft.Xna.Framework.Graphics
 			);
 		}
 
-		public void GetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int startIndex, int elementCount,
+		public void GetVertexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int startIndex,
+			int elementCount,
 			int elementSizeInBytes, int vertexStride)
 		{
 			throw new NotImplementedException();
 		}
 
-		public IGLBuffer GenIndexBuffer(bool dynamic, BufferUsage usage, int indexCount, IndexElementSize indexElementSize)
+		public IGLBuffer GenIndexBuffer(bool dynamic, BufferUsage usage, int indexCount,
+			IndexElementSize indexElementSize)
 		{
 			int elementSize = XNAToVK.IndexSize[(int) indexElementSize];
 
 			//DeviceSize size = (indexCount * elementSize);
 			//createBuffer(size, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer, MemoryPropertyFlags.DeviceLocal, out var buffer, out var bufferMemory);
 
-			IntPtr bufferSize = (IntPtr)(indexCount * elementSize);
+			IntPtr bufferSize = (IntPtr) (indexCount * elementSize);
 
 			VulkanBuffer newbuf = new VulkanBuffer(this, BufferUsageFlags.IndexBuffer, usage, bufferSize);
 			Buffers.Add(newbuf);
@@ -3131,12 +3149,13 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			var commandBuffer = beginSingleTimeCommands();
 
-			commandBuffer.CmdCopyBuffer(srcBuffer, dstBuffer, new BufferCopy { Size = size});
+			commandBuffer.CmdCopyBuffer(srcBuffer, dstBuffer, new BufferCopy {Size = size});
 
 			endSingleTimeCommands(commandBuffer);
 		}
 
-		void transitionImageLayout(Image image, uint level, Format format, ImageLayout oldLayout, ImageLayout newLayout) {
+		void transitionImageLayout(Image image, uint level, Format format, ImageLayout oldLayout, ImageLayout newLayout)
+		{
 			CommandBuffer commandBuffer = beginSingleTimeCommands();
 
 			var barrier = new ImageMemoryBarrier
@@ -3166,7 +3185,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				sourceStage = PipelineStageFlags.TopOfPipe;
 				destinationStage = PipelineStageFlags.Transfer;
-			} else if (oldLayout == ImageLayout.TransferDstOptimal && newLayout == ImageLayout.ShaderReadOnlyOptimal)
+			}
+			else if (oldLayout == ImageLayout.TransferDstOptimal && newLayout == ImageLayout.ShaderReadOnlyOptimal)
 			{
 				barrier.SrcAccessMask = AccessFlags.TransferWrite;
 				barrier.DstAccessMask = AccessFlags.ShaderRead;
@@ -3188,7 +3208,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			endSingleTimeCommands(commandBuffer);
 		}
 
-		void copyBufferToImage(Buffer buffer, Image image, uint level, uint width, uint height) {
+		void copyBufferToImage(Buffer buffer, Image image, uint level, uint width, uint height)
+		{
 			CommandBuffer commandBuffer = beginSingleTimeCommands();
 
 			commandBuffer.CmdCopyBufferToImage(buffer, image, ImageLayout.TransferDstOptimal, new BufferImageCopy
@@ -3230,21 +3251,23 @@ namespace Microsoft.Xna.Framework.Graphics
 				data,
 				dataLength,
 				options
-				);
+			);
 		}
 
 		struct ShaderBundle
 		{
 			internal ShaderModule ShaderModule { get; set; }
-			internal String Name{ get; set; }
+			internal String Name { get; set; }
 		}
+
 		struct UnitOfShader
 		{
 			internal ShaderBundle vs { get; set; }
 			internal ShaderBundle fs { get; set; }
 		}
 
-		public void GetIndexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int startIndex, int elementCount,
+		public void GetIndexBufferData(IGLBuffer buffer, int offsetInBytes, IntPtr data, int startIndex,
+			int elementCount,
 			int elementSizeInBytes)
 		{
 			throw new NotImplementedException();
@@ -3263,10 +3286,10 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			switch (format)
 			{
-				case DepthFormat.Depth16:		return Format.D16UnormS8Uint;
-				case DepthFormat.Depth24:		return Format.D24UnormS8Uint;
-				case DepthFormat.Depth24Stencil8:	return Format.D24UnormS8Uint;
-				default:				return Format.Undefined;
+				case DepthFormat.Depth16: return Format.D16UnormS8Uint;
+				case DepthFormat.Depth24: return Format.D24UnormS8Uint;
+				case DepthFormat.Depth24Stencil8: return Format.D24UnormS8Uint;
+				default: return Format.Undefined;
 			}
 		}
 
@@ -3295,7 +3318,7 @@ namespace Microsoft.Xna.Framework.Graphics
 #if DEBUG
 			unsafe
 			{
-				MojoShader.MOJOSHADER_effect *effectPtr = (MojoShader.MOJOSHADER_effect*) effect;
+				MojoShader.MOJOSHADER_effect* effectPtr = (MojoShader.MOJOSHADER_effect*) effect;
 				MojoShader.MOJOSHADER_error* err = (MojoShader.MOJOSHADER_error*) effectPtr->errors;
 				for (int i = 0; i < effectPtr->error_count; i += 1)
 				{
@@ -3305,6 +3328,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					{
 						endPtr++;
 					}
+
 					byte[] bytes = new byte[endPtr - (byte*) err[i].error];
 					Marshal.Copy(err[i].error, bytes, 0, bytes.Length);
 
@@ -3344,6 +3368,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				currentPass = 0;
 				shaderState = new MojoShader.MOJOSHADER_vkShaderState();
 			}
+
 			MojoShader.MOJOSHADER_vkDeleteEffect(mtlEffectData);
 			MojoShader.MOJOSHADER_freeEffect(effect.EffectData);
 		}
@@ -3369,7 +3394,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			IntPtr technique,
 			uint pass,
 			IntPtr stateChanges
-		) {
+		)
+		{
 			/* If a frame isn't already in progress,
 			 * wait until one begins to avoid overwriting
 			 * the previous frame's uniform buffers.
@@ -3387,6 +3413,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					);
 					return;
 				}
+
 				MojoShader.MOJOSHADER_vkEffectEndPass(currentEffect);
 				MojoShader.MOJOSHADER_vkEffectBeginPass(
 					currentEffect,
@@ -3405,6 +3432,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					ref shaderState
 				);
 			}
+
 			uint whatever;
 			MojoShader.MOJOSHADER_vkEffectBegin(
 				vkEffectData,
@@ -3432,9 +3460,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			throw new NotImplementedException();
 		}
 
-		private IntPtr currentVertexDescriptor;		// MTLVertexDescriptor*
+		private IntPtr currentVertexDescriptor; // MTLVertexDescriptor*
 
-		public void ApplyVertexAttributes(VertexBufferBinding[] bindings, int numBindings, bool bindingsUpdated, int baseVertex)
+		public void ApplyVertexAttributes(VertexBufferBinding[] bindings, int numBindings, bool bindingsUpdated,
+			int baseVertex)
 		{
 			// Translate the bindings array into a descriptor
 			currentVertexDescriptor = FetchVertexDescriptor(
@@ -3459,7 +3488,8 @@ namespace Microsoft.Xna.Framework.Graphics
 						(vertexBuffer.buffer as VulkanBuffer).InternalOffset
 					);
 
-					ulong handle = ((INonDispatchableHandleMarshalling)(vertexBuffer.buffer as VulkanBuffer).Buffer).Handle;
+					ulong handle = ((INonDispatchableHandleMarshalling) (vertexBuffer.buffer as VulkanBuffer).Buffer)
+						.Handle;
 					(vertexBuffer.buffer as VulkanBuffer).Bound();
 					if (ldVertexBuffers[i] != handle)
 					{
@@ -3527,10 +3557,110 @@ namespace Microsoft.Xna.Framework.Graphics
 			var framebuffer = _framebuffers[imageIndex];
 			if (false)
 			{
+			}
 
+			var clearValues = new List<ClearValue>();
+
+			var colorLoadOp = AttachmentLoadOp.DontCare;
+			if (shouldClearColor)
+			{
+				colorLoadOp = AttachmentLoadOp.Clear;
+				clearValues.Add(new ClearValue
+				{
+					Color = new ClearColorValue
+					{
+						Float32 = new[]
+						{
+							clearColor.X,
+							clearColor.Y,
+							clearColor.Z,
+							clearColor.W,
+						}
+					}
+				});
+			}
+
+			var depthLoadOp = AttachmentLoadOp.DontCare;
+			if (shouldClearDepth)
+			{
+				depthLoadOp = AttachmentLoadOp.Clear;
+				clearValues.Add(new ClearValue
+				{
+					DepthStencil = new ClearDepthStencilValue
+					{
+						Depth = 1.0f,
+						Stencil = 0,
+					}
+				});
 			}
 
 			// Make a new render pass
+
+			var format = Format.B8G8R8A8Unorm;
+			var depthFormat = Format.D16Unorm;
+
+			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
+			{
+				Attachments = new[]
+				{
+					new AttachmentDescription
+					{
+						Format = format,
+						Samples = SampleCountFlags.Count1,
+						LoadOp = colorLoadOp, //todo: needs to be generated from clear booleans
+						StoreOp = AttachmentStoreOp.Store,
+						StencilLoadOp = AttachmentLoadOp.DontCare,
+						StencilStoreOp = AttachmentStoreOp.DontCare,
+						InitialLayout = ImageLayout.ColorAttachmentOptimal,
+						FinalLayout = ImageLayout.ColorAttachmentOptimal,
+					},
+					new AttachmentDescription
+					{
+						Format = depthFormat,
+						Samples = SampleCountFlags.Count1,
+						LoadOp = depthLoadOp,
+						StoreOp = AttachmentStoreOp.DontCare, //todo: might have to store depth?
+						StencilLoadOp = AttachmentLoadOp.DontCare, //todo: stencil?
+						StencilStoreOp = AttachmentStoreOp.DontCare, //todo: stencil?
+						InitialLayout = ImageLayout.Undefined,
+						FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
+					}
+				},
+				Subpasses = new[]
+				{
+					new SubpassDescription
+					{
+						//needed?
+						//PipelineBindPoint = PipelineBindPoint.Graphics,
+						ColorAttachments = new[]
+						{
+							new AttachmentReference
+							{
+								Attachment = 0,
+								Layout = ImageLayout.ColorAttachmentOptimal,
+							}
+						},
+						DepthStencilAttachment = new AttachmentReference
+						{
+							Attachment = 1,
+							Layout = ImageLayout.DepthStencilAttachmentOptimal,
+						}
+					}
+				},
+				Dependencies = new[]
+				{
+					new SubpassDependency
+					{
+						SrcSubpass = uint.MaxValue,
+						DstSubpass = 0,
+						SrcStageMask = PipelineStageFlags.ColorAttachmentOutput,
+						SrcAccessMask = 0,
+						DstStageMask = PipelineStageFlags.ColorAttachmentOutput,
+						DstAccessMask = AccessFlags.ColorAttachmentWrite,
+					}
+				}
+			});
+
 			_commandBuffer.CmdBeginRenderPass(new RenderPassBeginInfo
 			{
 				RenderPass = renderPass,
@@ -3544,9 +3674,9 @@ namespace Microsoft.Xna.Framework.Graphics
 					},
 					Offset = new Offset2D(),
 				},
-				ClearValues = getCurrentClearValues(),
+				ClearValues = clearValues.ToArray(),
 			}, SubpassContents.Inline);
-			renderCommandEncoder = (IntPtr)1; // not null
+			renderCommandEncoder = (IntPtr) 1; // not null
 
 			// Get attachment size
 			//todo: fix hardcoded
@@ -3602,7 +3732,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Resource Binding Method
 
-		DescriptorSetLayoutBinding makeBinding(DescriptorType descriptorType, ShaderStageFlags shaderStageFlags, int binding)
+		DescriptorSetLayoutBinding makeBinding(DescriptorType descriptorType, ShaderStageFlags shaderStageFlags,
+			int binding)
 		{
 			return new DescriptorSetLayoutBinding
 			{
@@ -3613,104 +3744,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			};
 		}
 
-		private void generateOffscreenBuffer()
-		{
-						var setLayout = device.CreateDescriptorSetLayout(new DescriptorSetLayoutCreateInfo
-			{
-				Bindings = new DescriptorSetLayoutBinding[] {},
-			});
-			_setLayout = setLayout;
-
-			var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo
-			{
-				SetLayouts = new[] {setLayout},
-				//PushConstantRanges = new PushConstantRange[] { },
-			});
-
-			/*
-			PipelineShaderStageCreateInfo vertexCreateInfo = new PipelineShaderStageCreateInfo
-				{
-					Stage = ShaderStageFlags.Vertex,
-					Module = vshader,
-					Name = vname,
-				},
-				fragmentCreateInfo = new PipelineShaderStageCreateInfo
-				{
-					Stage = ShaderStageFlags.Fragment,
-					Module = fshader,
-					Name = fname,
-				};
-
-			var stages = new[] {vertexCreateInfo, fragmentCreateInfo};
-*/
-			var createInfo = new GraphicsPipelineCreateInfo
-			{
-				Stages = new PipelineShaderStageCreateInfo[]{},
-				VertexInputState = new PipelineVertexInputStateCreateInfo
-				{
-					VertexAttributeDescriptions = new VertexInputAttributeDescription[]{}, // todo: how to always make sure this is valid?
-					VertexBindingDescriptions = new VertexInputBindingDescription[] {  },
-				},
-				InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
-				{
-					Topology = PrimitiveTopology.TriangleList // todo, case off of primitive type
-				},
-				ViewportState = new PipelineViewportStateCreateInfo
-				{
-					ViewportCount = 1,
-					ScissorCount = 1, // todo: unset causes wrongness, test this.
-				},
-				RasterizationState = new PipelineRasterizationStateCreateInfo
-				{
-					/*
-					 * PolygonMode = PolygonMode.Fill,
-			CullMode = (uint)CullModeFlags.None,
-			FrontFace = FrontFace.Clockwise,
-			LineWidth = 1.0f
-					 */
-					LineWidth = 1.0f,
-				},
-				MultisampleState = new PipelineMultisampleStateCreateInfo
-				{
-					RasterizationSamples = SampleCountFlags.Count1,
-				},
-				DepthStencilState = new PipelineDepthStencilStateCreateInfo
-				{
-					DepthTestEnable = true,
-					DepthWriteEnable = true,
-					DepthCompareOp = CompareOp.Less,
-					DepthBoundsTestEnable = false,
-					StencilTestEnable = false,
-				},
-				ColorBlendState = new PipelineColorBlendStateCreateInfo
-				{
-					Attachments = new[]
-					{
-						new PipelineColorBlendAttachmentState
-						{
-							ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B |
-							                 ColorComponentFlags.A,
-							// todo: use blend-state to let this be set dynamically.
-							BlendEnable = true,
-							SrcColorBlendFactor = Vulkan.BlendFactor.SrcAlpha,
-							DstColorBlendFactor = Vulkan.BlendFactor.OneMinusSrcAlpha,
-							ColorBlendOp = BlendOp.Add,
-							SrcAlphaBlendFactor = Vulkan.BlendFactor.One,
-							DstAlphaBlendFactor = Vulkan.BlendFactor.Zero,
-							AlphaBlendOp = BlendOp.Add,
-
-						}
-					}
-				},
-				DynamicState = new PipelineDynamicStateCreateInfo
-				{
-					DynamicStates = new[] {DynamicState.Viewport, DynamicState.Scissor}
-				},
-				Layout = layout,
-				RenderPass = renderPass,
-			};
-			var offscreenPipeline = device.CreateGraphicsPipelines(null, new[] {createInfo})[0];
-		}
+		private PipelineShaderStageCreateInfo[] currentStages;
+		private PipelineLayout currentLayout;
 
 		private void BindResources()
 		{
@@ -3732,7 +3767,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			if (vstate.array_vec4 >= 0)
 				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Vertex,
 					vstate.array_vec4));
-			descriptorSetLayoutBindings.AddRange(vstate.samplers.Where(c => c >= 0).Select(c => makeBinding(DescriptorType.CombinedImageSampler, ShaderStageFlags.Vertex, c)));
+			descriptorSetLayoutBindings.AddRange(vstate.samplers.Where(c => c >= 0).Select(c =>
+				makeBinding(DescriptorType.CombinedImageSampler, ShaderStageFlags.Vertex, c)));
 			if (fstate.vpflip >= 0)
 				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Fragment,
 					fstate.vpflip));
@@ -3745,7 +3781,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			if (fstate.array_vec4 >= 0)
 				descriptorSetLayoutBindings.Add(makeBinding(DescriptorType.UniformBuffer, ShaderStageFlags.Fragment,
 					fstate.array_vec4));
-			descriptorSetLayoutBindings.AddRange(fstate.samplers.Where(c => c >= 0).Select(c => makeBinding(DescriptorType.CombinedImageSampler, ShaderStageFlags.Fragment, c)));
+			descriptorSetLayoutBindings.AddRange(fstate.samplers.Where(c => c >= 0).Select(c =>
+				makeBinding(DescriptorType.CombinedImageSampler, ShaderStageFlags.Fragment, c)));
 
 			var setLayout = device.CreateDescriptorSetLayout(new DescriptorSetLayoutCreateInfo
 			{
@@ -3753,37 +3790,37 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				//new[]
 				//{
-					// who are these? why do they both exist?
+				// who are these? why do they both exist?
 
-					/*
-					new DescriptorSetLayoutBinding
-					{
-						DescriptorType = DescriptorType.StorageBuffer,
-						StageFlags = ShaderStageFlags.Vertex,
-						Binding = 1,
-						DescriptorCount = 1,
-					},
-					*/
+				/*
+				new DescriptorSetLayoutBinding
+				{
+					DescriptorType = DescriptorType.StorageBuffer,
+					StageFlags = ShaderStageFlags.Vertex,
+					Binding = 1,
+					DescriptorCount = 1,
+				},
+				*/
 
-					/*
-						// todo: we can't hard-code this. this is so wrong.
-					new DescriptorSetLayoutBinding
-					{
-						//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-						//DescriptorType = DescriptorType.UniformBufferDynamic,
-						//DescriptorType = DescriptorType.Blo // VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT
-						DescriptorType = DescriptorType.UniformBuffer,
-						StageFlags = ShaderStageFlags.Vertex,
-						Binding = 0,
-						DescriptorCount = 1,
-					},
-					new DescriptorSetLayoutBinding
-					{
-						DescriptorType = DescriptorType.CombinedImageSampler,
-						StageFlags = ShaderStageFlags.Fragment,
-						Binding = 4,
-						DescriptorCount = 1,
-					}*/
+				/*
+					// todo: we can't hard-code this. this is so wrong.
+				new DescriptorSetLayoutBinding
+				{
+					//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+					//DescriptorType = DescriptorType.UniformBufferDynamic,
+					//DescriptorType = DescriptorType.Blo // VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT
+					DescriptorType = DescriptorType.UniformBuffer,
+					StageFlags = ShaderStageFlags.Vertex,
+					Binding = 0,
+					DescriptorCount = 1,
+				},
+				new DescriptorSetLayoutBinding
+				{
+					DescriptorType = DescriptorType.CombinedImageSampler,
+					StageFlags = ShaderStageFlags.Fragment,
+					Binding = 4,
+					DescriptorCount = 1,
+				}*/
 				//},
 				//Flags = DescriptorSetLayoutCreateFlags.PushDescriptorKhr
 			});
@@ -3794,6 +3831,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				SetLayouts = new[] {setLayout},
 				//PushConstantRanges = new PushConstantRange[] { },
 			});
+
+			currentLayout = layout;
 
 			PipelineShaderStageCreateInfo vertexCreateInfo = new PipelineShaderStageCreateInfo
 				{
@@ -3810,100 +3849,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			var stages = new[] {vertexCreateInfo, fragmentCreateInfo};
 
-			var createInfo = new GraphicsPipelineCreateInfo
-			{
-				Stages = stages,
-				VertexInputState = new PipelineVertexInputStateCreateInfo
-				{
-					/*
-					VertexAttributeDescriptions = new VertexInputAttributeDescription[]
-					{
-						new VertexInputAttributeDescription
-						{
-							// todo: all of this is hardcoded. why?
-							Binding = 0,
-							Format = Format.R32G32B32Sfloat, // IMPORTANT NOTE: this is set to 3 floats, not 4.
-							Location = 0,
-							Offset = 0,
-						}
-					},*/
-					VertexAttributeDescriptions = _descriptions, // todo: how to always make sure this is valid?
-					VertexBindingDescriptions = new [] { _bindingDescription },
-					/*
-					VertexBindingDescriptions = new VertexInputBindingDescription[]
-					{
-						new VertexInputBindingDescription
-						{
-							// todo: all of this is hardcoded. why?
-							Binding = 0, // todo: assuming there's only ever 1 vertex input binding
-							Stride = (uint)userVertexStride,
-							InputRate = VertexInputRate.Vertex,
-						}
-					},*/
-				},
-				InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
-				{
-					Topology = PrimitiveTopology.TriangleList // todo, case off of primitive type
-				},
-				ViewportState = new PipelineViewportStateCreateInfo
-				{
-					ViewportCount = 1,
-					ScissorCount = 1, // todo: unset causes wrongness, test this.
-				},
-				RasterizationState = new PipelineRasterizationStateCreateInfo
-				{
-					/*
-					 * PolygonMode = PolygonMode.Fill,
-			CullMode = (uint)CullModeFlags.None,
-			FrontFace = FrontFace.Clockwise,
-			LineWidth = 1.0f
-					 */
-					LineWidth = 1.0f,
-				},
-				MultisampleState = new PipelineMultisampleStateCreateInfo
-				{
-					RasterizationSamples = SampleCountFlags.Count1,
-				},
-				DepthStencilState = new PipelineDepthStencilStateCreateInfo
-				{
-					DepthTestEnable = true,
-					DepthWriteEnable = true,
-					DepthCompareOp = CompareOp.Less,
-					DepthBoundsTestEnable = false,
-					StencilTestEnable = false,
-				},
-				ColorBlendState = new PipelineColorBlendStateCreateInfo
-				{
-					Attachments = new[]
-					{
-						new PipelineColorBlendAttachmentState
-						{
-							ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B |
-							                 ColorComponentFlags.A,
-							// todo: use blend-state to let this be set dynamically.
-							BlendEnable = true,
-							SrcColorBlendFactor = Vulkan.BlendFactor.SrcAlpha,
-							DstColorBlendFactor = Vulkan.BlendFactor.OneMinusSrcAlpha,
-							ColorBlendOp = BlendOp.Add,
-							SrcAlphaBlendFactor = Vulkan.BlendFactor.One,
-							DstAlphaBlendFactor = Vulkan.BlendFactor.Zero,
-							AlphaBlendOp = BlendOp.Add,
-
-						}
-					}
-				},
-				DynamicState = new PipelineDynamicStateCreateInfo
-				{
-					DynamicStates = new[] {DynamicState.Viewport, DynamicState.Scissor}
-				},
-				Layout = layout,
-				RenderPass = renderPass,
-			};
-			var pipelines = device.CreateGraphicsPipelines(null, new[] {createInfo});
-
-			var trianglePipeline = pipelines[0];
-
-			_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, trianglePipeline);
+			currentStages = stages;
 
 			/*
 			Buffer buffer;
@@ -3952,15 +3898,14 @@ namespace Microsoft.Xna.Framework.Graphics
 				if (textureNeedsUpdate[i])
 				{
 					//var sella = fstate.samplers[i];
-				//	if (!(sella > -1))
-				//	{
-				//		throw new Exception($"bad sella {sella}");
-				//	}
+					//	if (!(sella > -1))
+					//	{
+					//		throw new Exception($"bad sella {sella}");
+					//	}
 					//Debug.Assert(fstate.samplers[i] > -1);
 
 					if (fstate.samplers[i] > 0)
 					{
-
 						var imageInfo = new DescriptorImageInfo
 						{
 							ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
@@ -3981,6 +3926,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 					textureNeedsUpdate[i] = false;
 				}
+
 				if (samplerNeedsUpdate[i])
 				{
 					/*
@@ -4013,9 +3959,11 @@ namespace Microsoft.Xna.Framework.Graphics
 					var bufferPtr = vertexUniformBuffer->buffer;
 					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
 					uniformBufferSize = size;
-				};
+				}
 
-				uint uniformBufferOffset = (uint)vOff;
+				;
+
+				uint uniformBufferOffset = (uint) vOff;
 
 				var uniformBufferInfo = new DescriptorBufferInfo
 				{
@@ -4026,7 +3974,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				var writeDescriptorSet = new WriteDescriptorSet
 				{
 					DstSet = descriptorSets[0],
-					DstBinding = (uint)vstate.array_vec4, // yass
+					DstBinding = (uint) vstate.array_vec4, // yass
 					DstArrayElement = 0,
 					DescriptorType = DescriptorType.UniformBuffer,
 					BufferInfo = new[] {uniformBufferInfo}
@@ -4035,7 +3983,6 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				ldVertUniformBuffer = vUniform;
 				ldVertUniformOffset = vOff;
-
 			}
 			else if (vOff != ldVertUniformOffset)
 			{
@@ -4050,9 +3997,11 @@ namespace Microsoft.Xna.Framework.Graphics
 					var bufferPtr = vertexUniformBuffer->buffer;
 					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
 					uniformBufferSize = size;
-				};
+				}
 
-				uint uniformBufferOffset = (uint)vOff;
+				;
+
+				uint uniformBufferOffset = (uint) vOff;
 
 				var uniformBufferInfo = new DescriptorBufferInfo
 				{
@@ -4063,7 +4012,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				var writeDescriptorSet = new WriteDescriptorSet
 				{
 					DstSet = descriptorSets[0],
-					DstBinding = (uint)vstate.array_vec4, // yass
+					DstBinding = (uint) vstate.array_vec4, // yass
 					DstArrayElement = 0,
 					DescriptorType = DescriptorType.UniformBuffer,
 					BufferInfo = new[] {uniformBufferInfo}
@@ -4088,9 +4037,11 @@ namespace Microsoft.Xna.Framework.Graphics
 					var bufferPtr = fragmentUniformBuffer->buffer;
 					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
 					uniformBufferSize = size;
-				};
+				}
 
-				uint uniformBufferOffset = (uint)vOff;
+				;
+
+				uint uniformBufferOffset = (uint) vOff;
 
 				var uniformBufferInfo = new DescriptorBufferInfo
 				{
@@ -4101,7 +4052,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				var writeDescriptorSet = new WriteDescriptorSet
 				{
 					DstSet = descriptorSets[0],
-					DstBinding = (uint)fstate.array_vec4, // yass
+					DstBinding = (uint) fstate.array_vec4, // yass
 					DstArrayElement = 0,
 					DescriptorType = DescriptorType.UniformBuffer,
 					BufferInfo = new[] {uniformBufferInfo}
@@ -4124,9 +4075,11 @@ namespace Microsoft.Xna.Framework.Graphics
 					var bufferPtr = fragmentUniformBuffer->buffer;
 					uniformBuffer = MyClass.makeT<Buffer>(bufferPtr);
 					uniformBufferSize = size;
-				};
+				}
 
-				uint uniformBufferOffset = (uint)vOff;
+				;
+
+				uint uniformBufferOffset = (uint) vOff;
 
 				var uniformBufferInfo = new DescriptorBufferInfo
 				{
@@ -4137,7 +4090,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				var writeDescriptorSet = new WriteDescriptorSet
 				{
 					DstSet = descriptorSets[0],
-					DstBinding = (uint)fstate.array_vec4, // yass
+					DstBinding = (uint) fstate.array_vec4, // yass
 					DstArrayElement = 0,
 					DescriptorType = DescriptorType.UniformBuffer,
 					BufferInfo = new[] {uniformBufferInfo}
@@ -4147,7 +4100,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				ldFragUniformOffset = fOff;
 			}
 
-			device.UpdateDescriptorSets (writeDescriptorSets.ToArray(), null);
+			device.UpdateDescriptorSets(writeDescriptorSets.ToArray(), null);
 			_commandBuffer.CmdBindDescriptorSet(PipelineBindPoint.Graphics, layout, 0, descriptorSets[0], null);
 
 			// Bind the depth-stencil state
@@ -4182,11 +4135,13 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					textureNeedsUpdate[i] = true;
 				}
+
 				if (Samplers[i] != IntPtr.Zero)
 				{
 					samplerNeedsUpdate[i] = true;
 				}
 			}
+
 			//ldDepthStencilState = IntPtr.Zero;
 			ldFragUniformBuffer = IntPtr.Zero;
 			ldFragUniformOffset = 0;
@@ -4231,7 +4186,6 @@ namespace Microsoft.Xna.Framework.Graphics
 		public void AddDisposeQuery(IGLQuery query)
 		{
 			//throw new NotImplementedException();
-
 		}
 
 		public void QueryBegin(IGLQuery query)
@@ -4259,7 +4213,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 
 			var res = IntPtr.Zero;
-			var result = device.GetQueryPoolResults2(queryPool, (query as VulkanQuery).Handle, 1, (UIntPtr)sizeof(uint), sizeof(uint), 0);
+			var result = device.GetQueryPoolResults2(queryPool, (query as VulkanQuery).Handle, 1,
+				(UIntPtr) sizeof(uint), sizeof(uint), 0);
 			//throw new NotImplementedException();
 			return res == IntPtr.Zero;
 		}
@@ -4268,7 +4223,8 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			//_commandBuffer.CmdResetQueryPool(queryPool, (query as VulkanQuery).Handle, 1);
 			//return 5;
-			var result = device.GetQueryPoolResults2(queryPool, (query as VulkanQuery).Handle, 1, (UIntPtr)sizeof(uint), sizeof(uint), 0);
+			var result = device.GetQueryPoolResults2(queryPool, (query as VulkanQuery).Handle, 1,
+				(UIntPtr) sizeof(uint), sizeof(uint), 0);
 			return (int) result[0];
 			//device.GetQueryPoolResults();
 		}
