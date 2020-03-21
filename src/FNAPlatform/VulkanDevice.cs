@@ -1359,7 +1359,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				ImageColorSpace = ColorSpaceKhr.SrgbNonlinear, //todo: is this causing our blending issues?
 				ImageExtent = extent,
 				ImageArrayLayers = 1,
-				ImageUsage = ImageUsageFlags.ColorAttachment,
+				ImageUsage = ImageUsageFlags.ColorAttachment | ImageUsageFlags.TransferDst, // setting transfer dst for blitting!
 				QueueFamilyIndexCount = 1,
 				QueueFamilyIndices = new uint[1] {graphicsQueueIndex},
 				PreTransform = SurfaceTransformFlagsKhr.Identity,
@@ -1379,7 +1379,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			};
 
-			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
+			var swapchainRenderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{
 				Attachments = new[]
 				{
@@ -1394,6 +1394,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						InitialLayout = ImageLayout.ColorAttachmentOptimal,
 						FinalLayout = ImageLayout.ColorAttachmentOptimal,
 					},
+					/*
 					new AttachmentDescription
 					{
 						Format = depthFormat,
@@ -1405,6 +1406,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						InitialLayout = ImageLayout.Undefined,
 						FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
 					}
+					*/
 				},
 				Subpasses = new[]
 				{
@@ -1420,11 +1422,13 @@ namespace Microsoft.Xna.Framework.Graphics
 								Layout = ImageLayout.ColorAttachmentOptimal,
 							}
 						},
+						/*
 						DepthStencilAttachment = new AttachmentReference
 						{
 							Attachment = 1,
 							Layout = ImageLayout.DepthStencilAttachmentOptimal,
 						}
+						*/
 					}
 				},
 				Dependencies = new[]
@@ -1464,12 +1468,45 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			_framebuffers = imageViews.Select(imageView => device.CreateFramebuffer(new FramebufferCreateInfo
 			{
-				RenderPass = renderPass,
-				Attachments = new[] {imageView, depthImageView},
+				RenderPass = swapchainRenderPass,
+				Attachments = new[] {imageView},
 				Width = swapChainExtent.Width,
 				Height = swapChainExtent.Height,
 				Layers = 1
 			})).ToArray();
+
+			createImage(
+				swapChainExtent.Width,
+				swapChainExtent.Height,
+				format,
+				ImageTiling.Optimal,
+				ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc,
+				MemoryPropertyFlags.DeviceLocal,
+				out var backBufferImage, out var backbufferImageMemory);
+			backImage = backBufferImage;
+			backImageMemory = backbufferImageMemory;
+			backImageView = device.CreateImageView(new ImageViewCreateInfo
+			{
+				Format = format,
+				Image = backBufferImage,
+				ViewType = ImageViewType.View2D,
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = ImageAspectFlags.Color,
+					LevelCount = 1,
+					LayerCount = 1
+				}
+			});
+			/*
+			backFramebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
+			{
+				RenderPass = renderPass, //todo: needs to be created per render pass?
+				Attachments = new []{backImageView},
+				Width = swapChainExtent.Width,
+				Height = swapChainExtent.Height,
+				Layers = 1,
+			});
+			*/
 
 			/*
 			 *         createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
@@ -1481,6 +1518,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			Console.WriteLine("swp" + _swapchainKhr);
 		}
+
+		private Image backImage;
+		private DeviceMemory backImageMemory;
+		private ImageView backImageView;
+
+		private Framebuffer backFramebuffer;
 
 		private Image depthImage;
 		private DeviceMemory depthImageMemory;
@@ -1550,6 +1593,24 @@ namespace Microsoft.Xna.Framework.Graphics
 			//			PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, new MemoryBarrier[0], new BufferMemoryBarrier[0], new[] {renderBeginBarrier});
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
 				PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, null, null, renderBeginBarrier);
+
+
+			//todo: might not be necessary to conver the backbuffer.
+			//todo: since it doesn't get preesnted, it doesn't need conversion.
+
+			var backBufferBarrier = imageMemoryBarrierz(
+				backImage,
+				0,
+				AccessFlags.ColorAttachmentWrite,
+				ImageLayout.Undefined,
+				ImageLayout.ColorAttachmentOptimal
+			);
+			//_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
+			//			PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, new MemoryBarrier[0], new BufferMemoryBarrier[0], new[] {renderBeginBarrier});
+			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
+				PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, null, null, backBufferBarrier);
+
+
 
 			// flipping the viewport coords is core in vulkan 1.1
 			_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
@@ -1658,10 +1719,73 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			//_commandBuffer.CmdEndRenderPass();
 
+
 			var renderEndBarrier = imageMemoryBarrierz(currentImage, AccessFlags.ColorAttachmentWrite, 0,
-				ImageLayout.ColorAttachmentOptimal, ImageLayout.PresentSrcKhr);
+				ImageLayout.ColorAttachmentOptimal, ImageLayout.TransferDstOptimal);
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput, PipelineStageFlags.TopOfPipe,
 				DependencyFlags.ByRegion, null, null, renderEndBarrier);
+
+			var backBufferEndBarrier = imageMemoryBarrierz(backImage, AccessFlags.ColorAttachmentWrite, 0,
+				ImageLayout.ColorAttachmentOptimal, ImageLayout.TransferSrcOptimal);
+			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput, PipelineStageFlags.TopOfPipe,
+				DependencyFlags.ByRegion, null, null, backBufferEndBarrier);
+
+			_commandBuffer.CmdBlitImage(backImage, ImageLayout.TransferSrcOptimal, currentImage,
+				ImageLayout.TransferDstOptimal, new ImageBlit
+				{
+					SrcOffsets = new[]
+					{
+						new Offset3D
+						{
+							X = 0,
+							Y = 0,
+							Z = 0,
+						},
+						new Offset3D
+						{
+							X = (int)swapChainExtent.Width,
+							Y = (int)swapChainExtent.Height,
+							Z = 1,
+						}
+					},
+					SrcSubresource = new ImageSubresourceLayers
+					{
+						AspectMask = ImageAspectFlags.Color,
+						LayerCount = 1,
+						MipLevel = 0,
+						BaseArrayLayer = 0,
+					},
+					DstOffsets = new[]
+					{
+						new Offset3D
+						{
+							X = 0,
+							Y = 0,
+							Z = 0,
+						},
+						new Offset3D
+						{
+							X = (int)swapChainExtent.Width,
+							Y = (int)swapChainExtent.Height,
+							Z = 1,
+						}
+					},
+					DstSubresource = new ImageSubresourceLayers
+					{
+						AspectMask = ImageAspectFlags.Color,
+						LayerCount = 1,
+						MipLevel = 0,
+						BaseArrayLayer = 0,
+					}
+				},
+				Filter.Linear);
+
+
+			var renderEndBarrier2 = imageMemoryBarrierz(currentImage, AccessFlags.ColorAttachmentWrite, 0,
+				ImageLayout.TransferDstOptimal, ImageLayout.PresentSrcKhr);
+			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput, PipelineStageFlags.TopOfPipe,
+				DependencyFlags.ByRegion, null, null, renderEndBarrier2);
+
 
 			_commandBuffer.End();
 
@@ -2557,8 +2681,8 @@ namespace Microsoft.Xna.Framework.Graphics
 					AddressModeU = SamplerAddressMode.Repeat,
 					AddressModeV = SamplerAddressMode.Repeat,
 					AddressModeW = SamplerAddressMode.Repeat,
-					AnisotropyEnable = true,
-					MaxAnisotropy = 16,
+					AnisotropyEnable = false,
+					//MaxAnisotropy = 1, // todo: how to get anisotropy from xna?
 					BorderColor = BorderColor.IntOpaqueBlack,
 					UnnormalizedCoordinates = false,
 					CompareEnable = false,
@@ -3555,8 +3679,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			//todo: choose framebuffer
 			var framebuffer = _framebuffers[imageIndex];
-			if (false)
+			if (true)
 			{
+				framebuffer = backFramebuffer;
 			}
 
 			var clearValues = new List<ClearValue>();
@@ -3619,7 +3744,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						Format = depthFormat,
 						Samples = SampleCountFlags.Count1,
 						LoadOp = depthLoadOp,
-						StoreOp = AttachmentStoreOp.DontCare, //todo: might have to store depth?
+						StoreOp = AttachmentStoreOp.Store, //todo: might have to store depth?
 						StencilLoadOp = AttachmentLoadOp.DontCare, //todo: stencil?
 						StencilStoreOp = AttachmentStoreOp.DontCare, //todo: stencil?
 						InitialLayout = ImageLayout.Undefined,
@@ -3661,10 +3786,19 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			});
 
+			backFramebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
+			{
+				RenderPass = renderPass, //todo: needs to be created per render pass?
+				Attachments = new []{backImageView, depthImageView},
+				Width = swapChainExtent.Width,
+				Height = swapChainExtent.Height,
+				Layers = 1,
+			});
+
 			_commandBuffer.CmdBeginRenderPass(new RenderPassBeginInfo
 			{
 				RenderPass = renderPass,
-				Framebuffer = framebuffer,
+				Framebuffer = backFramebuffer,
 				RenderArea = new Rect2D
 				{
 					Extent = new Extent2D
