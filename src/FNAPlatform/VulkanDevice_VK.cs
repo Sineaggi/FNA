@@ -15,9 +15,39 @@ using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Microsoft.Xna.Framework.Graphics;
 using Vulkan;
 
 #endregion
+
+namespace Vulkan
+{
+    public static class DeviceExtensions
+    {
+        public static uint[] GetQueryPoolResults2(this Device device, QueryPool queryPool, uint firstQuery,
+            uint queryCount,
+            UIntPtr dataSize,
+            DeviceSize stride,
+            QueryResultFlags flags = (QueryResultFlags) 0)
+        {
+            var deviceHandle = ((IMarshalling)device).Handle;
+            var queryPoolHandle = ((INonDispatchableHandleMarshalling) queryPool)?.Handle ?? 0UL;
+            var pData = new uint[(uint)dataSize];
+            Result queryPoolResults = VulkanDevice.vkGetQueryPoolResults(deviceHandle, queryPoolHandle, firstQuery, queryCount, (UIntPtr)((uint)dataSize * sizeof(int)), pData, stride, flags);
+            if ((uint) queryPoolResults > 0U)
+                throw new ResultException_Ext(queryPoolResults);
+            return pData;
+        }
+    }
+
+    class ResultException_Ext : Exception
+    {
+        public ResultException_Ext(Result queryPoolResults)
+        {
+
+        }
+    }
+}
 
 namespace Microsoft.Xna.Framework.Graphics
 {
@@ -28,6 +58,31 @@ namespace Microsoft.Xna.Framework.Graphics
     VkInstance instance,
     VkSurfaceKHR* surface);
     */
+
+    partial class VulkanDevice
+    {
+        [DllImport("vulkan-1")]
+        internal static extern Result vkGetQueryPoolResults(
+            IntPtr device,
+            ulong queryPool,
+            uint firstQuery,
+            uint queryCount,
+            UIntPtr dataSize,
+            IntPtr pData,
+            DeviceSize stride,
+            QueryResultFlags flags);
+
+        [DllImport("vulkan-1")]
+        internal static extern Result vkGetQueryPoolResults(
+            IntPtr device,
+            ulong queryPool,
+            uint firstQuery,
+            uint queryCount,
+            UIntPtr dataSize,
+            [In, Out] uint[] pData,
+            DeviceSize stride,
+            QueryResultFlags flags);
+    }
 
     class MyClass
     {
