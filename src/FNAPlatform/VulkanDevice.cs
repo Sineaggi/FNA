@@ -715,6 +715,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public Image ColorBuffer = null;
 			public ImageView ColorBufferView = null;
+			public DeviceMemory ColorBufferImageMemory = null;
 			public Image MultiSampleColorBuffer = null;
 			public Image DepthStencilBuffer = null;
 
@@ -752,6 +753,10 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public void Dispose()
 			{
+				vkDevice.device.DestroyImageView(ColorBufferView);
+				vkDevice.device.DestroyImage(ColorBuffer);
+				vkDevice.device.FreeMemory(ColorBufferImageMemory);
+
 				uint handle = Handle;
 				vkDevice = null;
 				Handle = 0;
@@ -1477,7 +1482,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		private DeviceMemory backImageMemory;
 		private ImageView backImageView;
 
-		private Framebuffer backFramebuffer;
+		//private Framebuffer backFramebuffer;
 
 		private Image depthImage;
 		private DeviceMemory depthImageMemory;
@@ -1485,8 +1490,18 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void Dispose()
 		{
+			// Stop rendering
+			EndPass();
+
+			Console.WriteLine("how fo finish");
 			// todo: start disposing
-			throw new NotImplementedException();
+			//throw new NotImplementedException();
+
+			// Dispose the backbuffer
+			(Backbuffer as VulkanBackbuffer).Dispose();
+
+			device.WaitIdle();
+			device.Destroy();
 		}
 
 		public void ResetBackbuffer(PresentationParameters presentationParameters, GraphicsAdapter adapter)
@@ -3780,6 +3795,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			});
 
+			/*
 			backFramebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
 			{
 				RenderPass = renderPass, //todo: needs to be created per render pass?
@@ -3788,6 +3804,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				Height = swapChainExtent.Height,
 				Layers = 1,
 			});
+			*/
 
 			var framebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
 			{
@@ -4332,6 +4349,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				ColorBuffer = backBufferImage,
 				ColorBufferView = backImageView,
+				ColorBufferImageMemory=backbufferImageMemory,
 			};
 
 			Backbuffer = vkBackbuffer;
