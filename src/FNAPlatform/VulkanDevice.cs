@@ -123,6 +123,8 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			public Image Handle { get; private set; }
 
+			public ImageView ImageView { get; private set; }
+
 			public Image MultiSampleHandle { get; private set; }
 
 			public Format PixelFormat { get; private set; }
@@ -148,6 +150,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			)
 			{
 				Handle = handle;
+				ImageView = viewHandle;
 				PixelFormat = pixelFormat;
 				MultiSampleCount = multiSampleCount;
 				MultiSampleHandle = multiSampleHandle;
@@ -711,10 +714,11 @@ namespace Microsoft.Xna.Framework.Graphics
 			private uint depthStencilAttachment;
 
 			public Image ColorBuffer = null;
+			public ImageView ColorBufferView = null;
 			public Image MultiSampleColorBuffer = null;
 			public Image DepthStencilBuffer = null;
 
-			private VulkanDevice device;
+			private VulkanDevice vkDevice;
 
 			public VulkanBackbuffer(
 				VulkanDevice device,
@@ -727,7 +731,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				Width = width;
 				Height = height;
 
-				device = device;
+				vkDevice = device;
 				DepthFormat = depthFormat;
 				MultiSampleCount = multiSampleCount;
 				Texture = 0;
@@ -749,7 +753,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			public void Dispose()
 			{
 				uint handle = Handle;
-				device = null;
+				vkDevice = null;
 				Handle = 0;
 			}
 
@@ -764,6 +768,14 @@ namespace Microsoft.Xna.Framework.Graphics
 				MultiSampleCount = presentationParameters.MultiSampleCount;
 
 				DepthFormat = depthFormat;
+			}
+
+			public void CreateFramebuffer(
+				PresentationParameters presentationParameters
+			)
+			{
+				// This is the default render target
+				vkDevice.SetRenderTargets(null, null, DepthFormat.None);
 			}
 		}
 
@@ -1077,14 +1089,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			commandPool = device.CreateCommandPool(new CommandPoolCreateInfo
 				{Flags = CommandPoolCreateFlags.ResetCommandBuffer});
 
-			Backbuffer = new VulkanBackbuffer(
-				this,
-				presentationParameters.BackBufferWidth,
-				presentationParameters.BackBufferHeight,
-				presentationParameters.DepthStencilFormat,
-				presentationParameters.MultiSampleCount
-			);
-
 			_commandBuffer = device.AllocateCommandBuffers(new CommandBufferAllocateInfo
 				{CommandPool = commandPool, Level = CommandBufferLevel.Primary, CommandBufferCount = 1})[0];
 
@@ -1207,6 +1211,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			// Initialize attachment arrays
 			int numAttachments = GraphicsDevice.MAX_RENDERTARGET_BINDINGS;
 			currentAttachments = new Image[numAttachments];
+			currentAttachmentViews = new ImageView[numAttachments];
+			//currentFramebuffer = new Framebuffer[numAttachments];
 			currentColorFormats = new Format[numAttachments];
 			currentMSAttachments = new Image[numAttachments];
 			currentAttachmentSlices = new CubeMapFace[numAttachments];
@@ -1302,10 +1308,11 @@ namespace Microsoft.Xna.Framework.Graphics
 			IntPtr defDS = mtlNewDepthStencilDescriptor();
 			defaultDepthStencilState = mtlNewDepthStencilStateWithDescriptor(device, defDS);
 			objc_release(defDS);
+			*/
 
 			// Create and setup the faux-backbuffer
 			InitializeFauxBackbuffer(presentationParameters);
-			*/
+
 
 			queryPool = device.CreateQueryPool(new QueryPoolCreateInfo
 			{
@@ -1347,7 +1354,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			uint graphicsQueueIndex = findQueueFamilies(physicalDevice).GraphicsFamily.Value;
 
 			//var format = Format.R8G8B8A8Unorm;
-			var format = Format.B8G8R8A8Unorm;
+			var format = Format.B8G8R8A8Unorm; //todo
 
 			var extent = new Extent2D
 			{
@@ -1459,29 +1466,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				Height = swapChainExtent.Height,
 				Layers = 1
 			})).ToArray();
-
-			createImage(
-				swapChainExtent.Width,
-				swapChainExtent.Height,
-				format,
-				ImageTiling.Optimal,
-				ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc,
-				MemoryPropertyFlags.DeviceLocal,
-				out var backBufferImage, out var backbufferImageMemory);
-			backImage = backBufferImage;
-			backImageMemory = backbufferImageMemory;
-			backImageView = device.CreateImageView(new ImageViewCreateInfo
-			{
-				Format = format,
-				Image = backBufferImage,
-				ViewType = ImageViewType.View2D,
-				SubresourceRange = new ImageSubresourceRange
-				{
-					AspectMask = ImageAspectFlags.Color,
-					LevelCount = 1,
-					LayerCount = 1
-				}
-			});
 
 			acquireSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
 			releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
@@ -1623,7 +1607,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			BeginFrame();
 
 			// Bind the backbuffer and finalize rendering
-			// SetRenderTargets(null, null, DepthFormat.None); // todo
+			SetRenderTargets(null, null, DepthFormat.None); // todo
 			EndPass();
 
 			// Determine the regions to present
@@ -2441,6 +2425,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		#region Render Target Cache Variables
 
 		private readonly Image[] currentAttachments;
+		private readonly ImageView[] currentAttachmentViews;
 		private readonly Format[] currentColorFormats;
 		private readonly Image[] currentMSAttachments;
 		private readonly CubeMapFace[] currentAttachmentSlices;
@@ -2474,6 +2459,11 @@ namespace Microsoft.Xna.Framework.Graphics
 				return;
 			}
 
+			if (renderTargets.Length > 1)
+			{
+				throw new NotImplementedException("nope not yet");
+			}
+
 			// Update color buffers
 			int i;
 			for (i = 0; i < renderTargets.Length; i += 1)
@@ -2484,14 +2474,17 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					VulkanRenderbuffer rb = rt.ColorBuffer as VulkanRenderbuffer;
 					currentAttachments[i] = rb.Handle;
+					currentAttachmentViews[i] = rb.ImageView;
 					currentColorFormats[i] = rb.PixelFormat;
 					currentSampleCount = rb.MultiSampleCount;
 					currentMSAttachments[i] = rb.MultiSampleHandle;
 				}
 				else
 				{
+					//throw new NotImplementedException("oh noez");
 					VulkanTexture tex = renderTargets[i].RenderTarget.texture as VulkanTexture;
 					currentAttachments[i] = tex.Image; //todo
+					currentAttachmentViews[i] = tex.ImageView; //todo;
 					currentColorFormats[i] = XNAToVK.TextureFormat[(int) tex.Format];
 					currentSampleCount = 0;
 				}
@@ -2515,6 +2508,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			for (int i = 0; i < currentAttachments.Length; i += 1)
 			{
 				currentAttachments[i] = null;
+				currentAttachmentViews[i] = null;
 				currentColorFormats[i] = Format.Undefined;
 				currentMSAttachments[i] = null;
 				currentAttachmentSlices[i] = (CubeMapFace) 0;
@@ -2529,6 +2523,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			VulkanBackbuffer bb = Backbuffer as VulkanBackbuffer;
 			currentAttachments[0] = bb.ColorBuffer;
+			currentAttachmentViews[0] = bb.ColorBufferView;
 			currentColorFormats[0] = bb.PixelFormat;
 			currentDepthStencilBuffer = bb.DepthStencilBuffer;
 			currentDepthFormat = bb.DepthFormat;
@@ -3649,11 +3644,11 @@ namespace Microsoft.Xna.Framework.Graphics
 			EndPass();
 
 			//todo: choose framebuffer
-			var framebuffer = _framebuffers[imageIndex];
-			if (true)
-			{
-				framebuffer = backFramebuffer;
-			}
+			//var framebuffer = _framebuffers[imageIndex];
+			//if (true)
+			//{
+			//	framebuffer = backFramebuffer;
+			//}
 
 			var clearValues = new List<ClearValue>();
 
@@ -3760,6 +3755,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				},
 				Dependencies = new[]
 				{
+					//todo: figure out this mess
+					//it got messy tryna figure out where depth was supposed to go
+					//how it was supposed to be stored, then reused
+					//for the lensflare test (using occlusion queries)
 					new SubpassDependency
 					{
 						SrcSubpass = uint.MaxValue,
@@ -3790,10 +3789,21 @@ namespace Microsoft.Xna.Framework.Graphics
 				Layers = 1,
 			});
 
+			var framebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
+			{
+				RenderPass = renderPass, //todo: needs to be created per render pass?
+				Attachments = new []{currentAttachmentViews[0], depthImageView},
+				Width = swapChainExtent.Width,
+				Height = swapChainExtent.Height,
+				Layers = 1,
+			});
+
+			//currentFramebuffer[0] = backFramebuffer;
+
 			_commandBuffer.CmdBeginRenderPass(new RenderPassBeginInfo
 			{
 				RenderPass = renderPass,
-				Framebuffer = backFramebuffer,
+				Framebuffer = framebuffer,
 				RenderArea = new Rect2D
 				{
 					Extent = new Extent2D
@@ -4281,6 +4291,60 @@ namespace Microsoft.Xna.Framework.Graphics
 				(UIntPtr) sizeof(uint), sizeof(uint), 0);
 			return (int) result[0];
 			//device.GetQueryPoolResults();
+		}
+
+		private void InitializeFauxBackbuffer(
+			PresentationParameters presentationParameters
+		)
+		{
+			var format = Format.B8G8R8A8Unorm;//todo
+
+			createImage(
+				swapChainExtent.Width,
+				swapChainExtent.Height,
+				format,
+				ImageTiling.Optimal,
+				ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc,
+				MemoryPropertyFlags.DeviceLocal,
+				out var backBufferImage, out var backbufferImageMemory);
+			backImage = backBufferImage;
+			backImageMemory = backbufferImageMemory;
+			backImageView = device.CreateImageView(new ImageViewCreateInfo
+			{
+				Format = format,
+				Image = backBufferImage,
+				ViewType = ImageViewType.View2D,
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = ImageAspectFlags.Color,
+					LevelCount = 1,
+					LayerCount = 1
+				}
+			});
+
+			var vkBackbuffer = new VulkanBackbuffer(
+				this,
+				presentationParameters.BackBufferWidth,
+				presentationParameters.BackBufferHeight,
+				presentationParameters.DepthStencilFormat,
+				presentationParameters.MultiSampleCount
+			)
+			{
+				ColorBuffer = backBufferImage,
+				ColorBufferView = backImageView,
+			};
+
+			Backbuffer = vkBackbuffer;
+			vkBackbuffer.CreateFramebuffer(presentationParameters);
+
+
+
+
+
+			//var bb = Backbuffer as VulkanBackbuffer;
+			//bb.ColorBuffer = backBufferImage;
+			//bb.ColorBufferView = backImageView;
+
 		}
 	}
 }
