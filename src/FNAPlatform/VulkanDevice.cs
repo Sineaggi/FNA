@@ -112,6 +112,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			public void Dispose()
 			{
 				device.DestroyImage(Image);
+				device.DestroyImageView(ImageView);
+				device.DestroySampler(Sampler);
 				device.FreeMemory(ImageMemory);
 			}
 		}
@@ -947,15 +949,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			var uumessage = Marshal.PtrToStringAnsi(message);
 			if (!(uumessage.Contains("Device Extension: ")
 			      || uumessage.Contains("Loading layer library ")
-			      || uumessage.Contains("Inserted device layer ")))
+			      || uumessage.Contains("Inserted device layer ")
+			      || uumessage.Contains("Unloading layer library ")))
 			{
-				Console.WriteLine("ech");
-			}
-			if (!flags.HasFlag(DebugReportFlagsExt.Information))
-			{
-				var umessage = Marshal.PtrToStringAnsi(message);
-				int x = 2;
-				return false;
+				Console.WriteLine($"{flags}:{uumessage}");
 			}
 			if (flags.HasFlag(DebugReportFlagsExt.Error))
 			{
@@ -971,6 +968,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		private uint windowWidth, windowHeight; // todo: need's support for re-creating swapchain.
 
 		private IntPtr window;
+		private Instance instance;
 
 		public VulkanDevice(
 			PresentationParameters presentationParameters,
@@ -990,7 +988,7 @@ namespace Microsoft.Xna.Framework.Graphics
  */
 
 
-			var instance = new Instance(new InstanceCreateInfo
+			instance = new Instance(new InstanceCreateInfo
 			{
 				ApplicationInfo = new ApplicationInfo
 				{
@@ -1003,6 +1001,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			});
 
 			instance.EnableDebug(DebugCallback);
+			//instance.debugCallback;
 
 			var hInstance = Marshal.GetHINSTANCE(typeof(SDL).Module);
 
@@ -1224,6 +1223,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			int numAttachments = GraphicsDevice.MAX_RENDERTARGET_BINDINGS;
 			currentAttachments = new Image[numAttachments];
 			currentAttachmentViews = new ImageView[numAttachments];
+			currentAttachmentHeights = new uint[numAttachments];
+			currentAttachmentWidths=new uint[numAttachments];
 			//currentFramebuffer = new Framebuffer[numAttachments];
 			currentColorFormats = new Format[numAttachments];
 			currentMSAttachments = new Image[numAttachments];
@@ -1403,7 +1404,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			};
 
-			var swapchainRenderPass = device.CreateRenderPass(new RenderPassCreateInfo
+			swapchainRenderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{
 				Attachments = new[]
 				{
@@ -1485,6 +1486,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			Console.WriteLine("swp" + _swapchainKhr);
 		}
 
+		private RenderPass swapchainRenderPass;
+
 		private Image backImage;
 		private DeviceMemory backImageMemory;
 		private ImageView backImageView;
@@ -1524,12 +1527,18 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			device.DestroyCommandPool(commandPool);
 
+			device.DestroyQueryPool(queryPool);
+
 			device.DestroySemaphore(acquireSemaphore);
 			device.DestroySemaphore(releaseSemaphore);
 
 			DestroySwapchain();
 
+			device.DestroyRenderPass(swapchainRenderPass);
+
 			device.Destroy();
+			instance.DestroySurfaceKHR(surface);
+			instance.Dispose(); // calls destroy, but more importantly destroys debug callback
 		}
 
 		public void ResetBackbuffer(PresentationParameters presentationParameters, GraphicsAdapter adapter)
@@ -2469,6 +2478,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private readonly Image[] currentAttachments;
 		private readonly ImageView[] currentAttachmentViews;
+		private readonly uint[] currentAttachmentWidths;
+		private readonly uint[] currentAttachmentHeights;
 		private readonly Format[] currentColorFormats;
 		private readonly Image[] currentMSAttachments;
 		private readonly CubeMapFace[] currentAttachmentSlices;
@@ -2515,9 +2526,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				currentAttachmentSlices[i] = renderTargets[i].CubeMapFace;
 				if (rt.ColorBuffer != null)
 				{
+					throw new NotImplementedException();
 					VulkanRenderbuffer rb = rt.ColorBuffer as VulkanRenderbuffer;
-					currentAttachments[i] = rb.Handle;
-					currentAttachmentViews[i] = rb.ImageView;
+					//currentAttachments[i] = rb.Handle;
+					//currentAttachmentViews[i] = rb.ImageView;
 					currentColorFormats[i] = rb.PixelFormat;
 					currentSampleCount = rb.MultiSampleCount;
 					currentMSAttachments[i] = rb.MultiSampleHandle;
@@ -2525,9 +2537,13 @@ namespace Microsoft.Xna.Framework.Graphics
 				else
 				{
 					//throw new NotImplementedException("oh noez");
-					VulkanTexture tex = renderTargets[i].RenderTarget.texture as VulkanTexture;
+					var renderTarget = renderTargets[i].RenderTarget as RenderTarget2D;
+					VulkanTexture tex = renderTarget.texture as VulkanTexture;
 					currentAttachments[i] = tex.Image; //todo
 					currentAttachmentViews[i] = tex.ImageView; //todo;
+					currentAttachmentHeights[i] = tex.Height;
+					currentAttachmentWidths[i] = tex.Width;
+					//currentDepthKeks[i] = renderTarget.DepthStencilFormat;
 					currentColorFormats[i] = XNAToVK.TextureFormat[(int) tex.Format];
 					currentSampleCount = 0;
 				}
@@ -2551,7 +2567,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			for (int i = 0; i < currentAttachments.Length; i += 1)
 			{
 				currentAttachments[i] = null;
-				currentAttachmentViews[i] = null;
+				//currentAttachmentViews[i] = null;
 				currentColorFormats[i] = Format.Undefined;
 				currentMSAttachments[i] = null;
 				currentAttachmentSlices[i] = (CubeMapFace) 0;
@@ -2567,6 +2583,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			VulkanBackbuffer bb = Backbuffer as VulkanBackbuffer;
 			currentAttachments[0] = bb.ColorBuffer;
 			currentAttachmentViews[0] = bb.ColorBufferView;
+			currentAttachmentWidths[0] = (uint)bb.Width;
+			currentAttachmentHeights[0] = (uint)bb.Height;
 			currentColorFormats[0] = bb.PixelFormat;
 			currentDepthStencilBuffer = bb.DepthStencilBuffer;
 			currentDepthFormat = bb.DepthFormat;
@@ -2631,7 +2649,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			else
 			{
-				Console.WriteLine("USing render targets\n");
 				usageFlags = ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled;
 			}
 
@@ -3429,7 +3446,7 @@ namespace Microsoft.Xna.Framework.Graphics
 		public IGLEffect CreateEffect(byte[] effectCode)
 		{
 			IntPtr effect = IntPtr.Zero;
-			//IntPtr vkEffect = IntPtr.Zero;
+			IntPtr vkEffect = IntPtr.Zero;
 
 			effect = MojoShader.MOJOSHADER_parseEffect(
 				MojoShader.MOJOSHADER_PROFILE_SPIRV,
@@ -3471,17 +3488,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 #endif
 
-			var vkEffect = MojoShader.MOJOSHADER_vkCompileEffect(effect);
+			vkEffect = MojoShader.MOJOSHADER_vkCompileEffect(effect);
 			if (vkEffect == IntPtr.Zero)
 			{
 				throw new InvalidOperationException(
-					MojoShader.MOJOSHADER_glGetError()
+					MojoShader.MOJOSHADER_glGetError()//todo vkGetError
 				);
 			}
 
-			var vulkanEffect = new VulkanEffect(effect, vkEffect);
-
-			return vulkanEffect;
+			return new VulkanEffect(effect, vkEffect);
 		}
 
 		private void DeleteEffect(IGLEffect effect)
@@ -3504,9 +3519,23 @@ namespace Microsoft.Xna.Framework.Graphics
 			MojoShader.MOJOSHADER_freeEffect(effect.EffectData);
 		}
 
-		public IGLEffect CloneEffect(IGLEffect effect)
+		public IGLEffect CloneEffect(IGLEffect cloneSource)
 		{
-			throw new NotImplementedException();
+			IntPtr effect = IntPtr.Zero;
+			IntPtr vkEffect = IntPtr.Zero;
+
+			effect = MojoShader.MOJOSHADER_cloneEffect(cloneSource.EffectData);
+			vkEffect = MojoShader.MOJOSHADER_vkCompileEffect(
+				effect
+			);
+			if (vkEffect == IntPtr.Zero)
+			{
+				throw new InvalidOperationException(
+					MojoShader.MOJOSHADER_mtlGetError()
+				);
+			}
+
+			return new VulkanEffect(effect, vkEffect);
 		}
 
 		public void AddDisposeEffect(IGLEffect effect)

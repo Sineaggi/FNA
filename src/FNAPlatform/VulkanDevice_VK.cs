@@ -82,6 +82,15 @@ namespace Microsoft.Xna.Framework.Graphics
             [In, Out] uint[] pData,
             DeviceSize stride,
             QueryResultFlags flags);
+
+        /*
+        [DllImport("vulkan-1")]
+        internal static extern unsafe Result vkCreateFramebuffer(
+            IntPtr device,
+            FramebufferCreateInfo* pCreateInfo,
+            AllocationCallbacks* pAllocator,
+            ulong* pFramebuffer);
+            */
     }
 
     class MyClass
