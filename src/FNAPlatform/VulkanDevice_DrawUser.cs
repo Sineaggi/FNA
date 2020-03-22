@@ -48,6 +48,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			// only for changes that can happen in-between normal draw calls
 			// and not for wider changes.
 
+			/*
+			 * DepthStencilState.Default;
+            DepthStencilState.None;
+            DepthStencilState.DepthRead;
+            RasterizerState.CullClockwise;
+            RasterizerState.CullNone;
+            RasterizerState.CullCounterClockwise;
+			 */
+
 			var pipeline = device.CreateGraphicsPipelines(null, new[]
 			{
 				new GraphicsPipelineCreateInfo
@@ -69,13 +78,10 @@ namespace Microsoft.Xna.Framework.Graphics
 					},
 					RasterizationState = new PipelineRasterizationStateCreateInfo
 					{
-						/*
-						 * PolygonMode = PolygonMode.Fill,
-				CullMode = (uint)CullModeFlags.None,
-				FrontFace = FrontFace.Clockwise,
-				LineWidth = 1.0f
-						 */
-						LineWidth = 1.0f,
+						PolygonMode = XNAToVK.FillMode[(int) fillMode],
+						//CullMode = XNAToVK.CullingEnabled[(int)cullFrontFace],//todo,
+						//FrontFace = FrontFace.Clockwise,//todo
+						LineWidth = 1.0f, //spec says so
 					},
 					MultisampleState = new PipelineMultisampleStateCreateInfo
 					{
@@ -83,11 +89,11 @@ namespace Microsoft.Xna.Framework.Graphics
 					},
 					DepthStencilState = new PipelineDepthStencilStateCreateInfo
 					{
-						DepthTestEnable = true,
-						DepthWriteEnable = true,
-						DepthCompareOp = CompareOp.Less,
-						DepthBoundsTestEnable = false,
-						StencilTestEnable = false,
+						DepthTestEnable = true,//todo
+						DepthWriteEnable = true,//todo
+						DepthCompareOp = XNAToVK.CompareFunc[(int)depthStencilState.DepthBufferFunction],
+						DepthBoundsTestEnable = false,//todo
+						StencilTestEnable = false,//todo
 					},
 					ColorBlendState = new PipelineColorBlendStateCreateInfo
 					{
@@ -97,14 +103,13 @@ namespace Microsoft.Xna.Framework.Graphics
 							{
 								ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B |
 								                 ColorComponentFlags.A,
-								// todo: use blend-state to let this be set dynamically.
-								BlendEnable = true,
-								SrcColorBlendFactor = Vulkan.BlendFactor.SrcAlpha,
-								DstColorBlendFactor = Vulkan.BlendFactor.OneMinusSrcAlpha,
-								ColorBlendOp = BlendOp.Add,
-								SrcAlphaBlendFactor = Vulkan.BlendFactor.One,
-								DstAlphaBlendFactor = Vulkan.BlendFactor.Zero,
-								AlphaBlendOp = BlendOp.Add,
+								BlendEnable = true, //todo: is this not always true?
+								SrcColorBlendFactor = XNAToVK.BlendMode[(int) blendState.ColorSourceBlend],
+								DstColorBlendFactor = XNAToVK.BlendMode[(int) blendState.ColorDestinationBlend],
+								ColorBlendOp = XNAToVK.BlendOperation[(int) blendState.ColorBlendFunction],
+								SrcAlphaBlendFactor = XNAToVK.BlendMode[(int) blendState.AlphaSourceBlend],
+								DstAlphaBlendFactor = XNAToVK.BlendMode[(int) blendState.AlphaDestinationBlend],
+								AlphaBlendOp = XNAToVK.BlendOperation[(int) blendState.AlphaBlendFunction],
 							}
 						}
 					},

@@ -572,7 +572,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				CullModeFlags.None, // CullMode.None
 				CullModeFlags.Front, // CullMode.CullClockwiseFace
-				CullModeFlags.Back // CullMode.CullCounterClockwiseFace
+				CullModeFlags.Back, // CullMode.CullCounterClockwiseFace
 			};
 
 			public static readonly SamplerAddressMode[] Wrap = new SamplerAddressMode[]
@@ -927,6 +927,12 @@ namespace Microsoft.Xna.Framework.Graphics
 		private Bool32 DebugCallback(DebugReportFlagsExt flags, DebugReportObjectTypeExt objectType, ulong objectHandle,
 			IntPtr location, int messageCode, IntPtr layerPrefix, IntPtr message, IntPtr userData)
 		{
+			if (!flags.HasFlag(DebugReportFlagsExt.Information))
+			{
+				var umessage = Marshal.PtrToStringAnsi(message);
+				int x = 2;
+				return false;
+			}
 			if (flags.HasFlag(DebugReportFlagsExt.Error))
 			{
 				var umessage = Marshal.PtrToStringAnsi(message);
@@ -1304,8 +1310,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			queryPool = device.CreateQueryPool(new QueryPoolCreateInfo
 			{
 				QueryType = QueryType.Occlusion,
-				PipelineStatistics = 0, //QueryPipelineStatisticFlags.FragmentShaderInvocations,
-				QueryCount = 144000,
+				QueryCount = 144000, // should be enough for anybody
 			});
 		}
 
@@ -1368,7 +1373,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				OldSwapchain = oldSwapchain,
 			});
 
-			var depthFormat = Format.D16Unorm;
+			var depthFormat = Format.D24UnormS8Uint;
 
 			//todo: potentially set dynamic state
 			var kk = new PipelineDynamicStateCreateInfo
@@ -1394,19 +1399,6 @@ namespace Microsoft.Xna.Framework.Graphics
 						InitialLayout = ImageLayout.ColorAttachmentOptimal,
 						FinalLayout = ImageLayout.ColorAttachmentOptimal,
 					},
-					/*
-					new AttachmentDescription
-					{
-						Format = depthFormat,
-						Samples = SampleCountFlags.Count1,
-						LoadOp = AttachmentLoadOp.Clear,
-						StoreOp = AttachmentStoreOp.DontCare,
-						StencilLoadOp = AttachmentLoadOp.DontCare,
-						StencilStoreOp = AttachmentStoreOp.DontCare,
-						InitialLayout = ImageLayout.Undefined,
-						FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
-					}
-					*/
 				},
 				Subpasses = new[]
 				{
@@ -1422,13 +1414,6 @@ namespace Microsoft.Xna.Framework.Graphics
 								Layout = ImageLayout.ColorAttachmentOptimal,
 							}
 						},
-						/*
-						DepthStencilAttachment = new AttachmentReference
-						{
-							Attachment = 1,
-							Layout = ImageLayout.DepthStencilAttachmentOptimal,
-						}
-						*/
 					}
 				},
 				Dependencies = new[]
@@ -1497,21 +1482,6 @@ namespace Microsoft.Xna.Framework.Graphics
 					LayerCount = 1
 				}
 			});
-			/*
-			backFramebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
-			{
-				RenderPass = renderPass, //todo: needs to be created per render pass?
-				Attachments = new []{backImageView},
-				Width = swapChainExtent.Width,
-				Height = swapChainExtent.Height,
-				Layers = 1,
-			});
-			*/
-
-			/*
-			 *         createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-			 */
 
 			acquireSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
 			releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
@@ -1582,18 +1552,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			});
 
 			currentImage = images[imageIndex];
-			var renderBeginBarrier = imageMemoryBarrierz(
-				currentImage,
-				0,
-				AccessFlags.ColorAttachmentWrite,
-				ImageLayout.Undefined,
-				ImageLayout.ColorAttachmentOptimal
-			);
-			//_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
-			//			PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, new MemoryBarrier[0], new BufferMemoryBarrier[0], new[] {renderBeginBarrier});
-			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput,
-				PipelineStageFlags.ColorAttachmentOutput, DependencyFlags.ByRegion, null, null, renderBeginBarrier);
-
 
 			//todo: might not be necessary to conver the backbuffer.
 			//todo: since it doesn't get preesnted, it doesn't need conversion.
@@ -1718,13 +1676,21 @@ namespace Microsoft.Xna.Framework.Graphics
 			// todo: what to do if sourceRectangle or destinationRectangle are not null. Also what to do with windowhandle
 
 			//_commandBuffer.CmdEndRenderPass();
+			/*
+			 * 0,
+				AccessFlags.ColorAttachmentWrite,
+				ImageLayout.Undefined,
+				ImageLayout.ColorAttachmentOptimal
+			 */
 
 
-			var renderEndBarrier = imageMemoryBarrierz(currentImage, AccessFlags.ColorAttachmentWrite, 0,
-				ImageLayout.ColorAttachmentOptimal, ImageLayout.TransferDstOptimal);
+			// convert swapchain image to something that can be blitted to
+			var renderEndBarrier = imageMemoryBarrierz(currentImage, 0, 0,
+				ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput, PipelineStageFlags.TopOfPipe,
 				DependencyFlags.ByRegion, null, null, renderEndBarrier);
 
+			// convert backbuffer image to something that can be blitted from
 			var backBufferEndBarrier = imageMemoryBarrierz(backImage, AccessFlags.ColorAttachmentWrite, 0,
 				ImageLayout.ColorAttachmentOptimal, ImageLayout.TransferSrcOptimal);
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput, PipelineStageFlags.TopOfPipe,
@@ -1780,7 +1746,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				},
 				Filter.Linear);
 
-
+			// convert swapchain image to something that can presented from
 			var renderEndBarrier2 = imageMemoryBarrierz(currentImage, AccessFlags.ColorAttachmentWrite, 0,
 				ImageLayout.TransferDstOptimal, ImageLayout.PresentSrcKhr);
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput, PipelineStageFlags.TopOfPipe,
@@ -1830,6 +1796,9 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				Buffers[i].Reset();
 			}
+
+			depthLoaded = false;
+
 
 			MojoShader.MOJOSHADER_vkEndFrame();
 
@@ -3661,6 +3630,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private bool needNewRenderPass;
 
+		private bool depthLoaded = false;
+
 		private void UpdateRenderPass()
 		{
 			if (!needNewRenderPass) return;
@@ -3706,6 +3677,20 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 
 			var depthLoadOp = AttachmentLoadOp.DontCare;
+			var depthInitialLayout = ImageLayout.Undefined;
+			if (depthLoaded == false)
+			{
+				depthLoaded = true;
+			}
+			else
+			{
+				depthLoadOp = AttachmentLoadOp.Load;
+				depthInitialLayout = ImageLayout.DepthStencilAttachmentOptimal;
+				//depthInitialLayout = ImageLayout.DepthStencilReadOnlyOptimal;
+
+				//todo: we transfer depth to be read only, how?
+				//transitionImageLayout(depthImage, 0, Format.D16Unorm, ImageLayout.DepthStencilAttachmentOptimal, ImageLayout.DepthStencilReadOnlyOptimal);
+			}
 			if (shouldClearDepth)
 			{
 				depthLoadOp = AttachmentLoadOp.Clear;
@@ -3722,7 +3707,9 @@ namespace Microsoft.Xna.Framework.Graphics
 			// Make a new render pass
 
 			var format = Format.B8G8R8A8Unorm;
-			var depthFormat = Format.D16Unorm;
+			var depthFormat = Format.D24UnormS8Uint;
+
+			//device.sub
 
 			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{
@@ -3747,7 +3734,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						StoreOp = AttachmentStoreOp.Store, //todo: might have to store depth?
 						StencilLoadOp = AttachmentLoadOp.DontCare, //todo: stencil?
 						StencilStoreOp = AttachmentStoreOp.DontCare, //todo: stencil?
-						InitialLayout = ImageLayout.Undefined,
+						InitialLayout = depthInitialLayout,
 						FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
 					}
 				},
@@ -3755,8 +3742,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					new SubpassDescription
 					{
-						//needed?
-						//PipelineBindPoint = PipelineBindPoint.Graphics,
+						PipelineBindPoint = PipelineBindPoint.Graphics,
 						ColorAttachments = new[]
 						{
 							new AttachmentReference
@@ -3778,10 +3764,19 @@ namespace Microsoft.Xna.Framework.Graphics
 					{
 						SrcSubpass = uint.MaxValue,
 						DstSubpass = 0,
-						SrcStageMask = PipelineStageFlags.ColorAttachmentOutput,
-						SrcAccessMask = 0,
-						DstStageMask = PipelineStageFlags.ColorAttachmentOutput,
-						DstAccessMask = AccessFlags.ColorAttachmentWrite,
+						SrcStageMask = PipelineStageFlags.ColorAttachmentOutput | PipelineStageFlags.EarlyFragmentTests,
+						SrcAccessMask = AccessFlags.ColorAttachmentRead | AccessFlags.DepthStencilAttachmentRead,
+						DstStageMask = PipelineStageFlags.ColorAttachmentOutput | PipelineStageFlags.EarlyFragmentTests,
+						DstAccessMask = AccessFlags.ColorAttachmentWrite | AccessFlags.DepthStencilAttachmentWrite,
+					},
+					new SubpassDependency
+					{
+						SrcSubpass = 0,
+						DstSubpass = uint.MaxValue,
+						SrcStageMask = PipelineStageFlags.ColorAttachmentOutput | PipelineStageFlags.LateFragmentTests,
+						SrcAccessMask = AccessFlags.ColorAttachmentRead | AccessFlags.DepthStencilAttachmentRead,
+						DstStageMask = PipelineStageFlags.ColorAttachmentOutput | PipelineStageFlags.EarlyFragmentTests,
+						DstAccessMask = AccessFlags.ColorAttachmentWrite | AccessFlags.DepthStencilAttachmentWrite,
 					}
 				}
 			});
@@ -4328,7 +4323,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			EndPass();
 
 			_commandBuffer.CmdResetQueryPool(queryPool, (query as VulkanQuery).Handle, 1);
-			_commandBuffer.CmdBeginQuery(queryPool, (query as VulkanQuery).Handle, 0);
+			_commandBuffer.CmdBeginQuery(queryPool, (query as VulkanQuery).Handle, QueryControlFlags.Precise);
 			//throw new NotImplementedException();
 			needNewRenderPass = true;
 		}
