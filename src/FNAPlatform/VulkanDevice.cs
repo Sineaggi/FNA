@@ -944,6 +944,13 @@ namespace Microsoft.Xna.Framework.Graphics
 		private Bool32 DebugCallback(DebugReportFlagsExt flags, DebugReportObjectTypeExt objectType, ulong objectHandle,
 			IntPtr location, int messageCode, IntPtr layerPrefix, IntPtr message, IntPtr userData)
 		{
+			var uumessage = Marshal.PtrToStringAnsi(message);
+			if (!(uumessage.Contains("Device Extension: ")
+			      || uumessage.Contains("Loading layer library ")
+			      || uumessage.Contains("Inserted device layer ")))
+			{
+				Console.WriteLine("ech");
+			}
 			if (!flags.HasFlag(DebugReportFlagsExt.Information))
 			{
 				var umessage = Marshal.PtrToStringAnsi(message);
@@ -1488,6 +1495,21 @@ namespace Microsoft.Xna.Framework.Graphics
 		private DeviceMemory depthImageMemory;
 		private ImageView depthImageView;
 
+		private void DestroySwapchain()
+		{
+			foreach (var framebuffer in _framebuffers)
+			{
+				device.DestroyFramebuffer(framebuffer);
+			}
+
+			foreach (var imageView in imageViews)
+			{
+				device.DestroyImageView(imageView);
+			}
+
+			device.DestroySwapchainKHR(_swapchainKhr);
+		}
+
 		public void Dispose()
 		{
 			// Stop rendering
@@ -1500,7 +1522,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			// Dispose the backbuffer
 			(Backbuffer as VulkanBackbuffer).Dispose();
 
-			device.WaitIdle();
+			device.DestroyCommandPool(commandPool);
+
+			device.DestroySemaphore(acquireSemaphore);
+			device.DestroySemaphore(releaseSemaphore);
+
+			DestroySwapchain();
+
 			device.Destroy();
 		}
 
