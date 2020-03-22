@@ -483,37 +483,37 @@ namespace Microsoft.Xna.Framework.Graphics
 				BlendOp.Min, // BlendFunction.Min
 			};
 
-			public static int ColorWriteMask(ColorWriteChannels channels)
+			public static ColorComponentFlags ColorWriteMask(ColorWriteChannels channels)
 			{
 				if (channels == ColorWriteChannels.None)
 				{
-					return 0x0;
+					return 0;
 				}
 
 				if (channels == ColorWriteChannels.All)
 				{
-					return 0xf;
+					return ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B | ColorComponentFlags.A;
 				}
 
-				int ret = 0;
+				ColorComponentFlags ret = 0;
 				if ((channels & ColorWriteChannels.Red) != 0)
 				{
-					ret |= (0x1 << 3);
+					ret |= ColorComponentFlags.R;
 				}
 
 				if ((channels & ColorWriteChannels.Green) != 0)
 				{
-					ret |= (0x1 << 2);
+					ret |= ColorComponentFlags.G;
 				}
 
 				if ((channels & ColorWriteChannels.Blue) != 0)
 				{
-					ret |= (0x1 << 1);
+					ret |= ColorComponentFlags.B;
 				}
 
 				if ((channels & ColorWriteChannels.Alpha) != 0)
 				{
-					ret |= (0x1 << 0);
+					ret |= ColorComponentFlags.A;
 				}
 
 				return ret;
@@ -3916,49 +3916,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			var setLayout = device.CreateDescriptorSetLayout(new DescriptorSetLayoutCreateInfo
 			{
 				Bindings = descriptorSetLayoutBindings.ToArray(),
-
-				//new[]
-				//{
-				// who are these? why do they both exist?
-
-				/*
-				new DescriptorSetLayoutBinding
-				{
-					DescriptorType = DescriptorType.StorageBuffer,
-					StageFlags = ShaderStageFlags.Vertex,
-					Binding = 1,
-					DescriptorCount = 1,
-				},
-				*/
-
-				/*
-					// todo: we can't hard-code this. this is so wrong.
-				new DescriptorSetLayoutBinding
-				{
-					//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-					//DescriptorType = DescriptorType.UniformBufferDynamic,
-					//DescriptorType = DescriptorType.Blo // VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT
-					DescriptorType = DescriptorType.UniformBuffer,
-					StageFlags = ShaderStageFlags.Vertex,
-					Binding = 0,
-					DescriptorCount = 1,
-				},
-				new DescriptorSetLayoutBinding
-				{
-					DescriptorType = DescriptorType.CombinedImageSampler,
-					StageFlags = ShaderStageFlags.Fragment,
-					Binding = 4,
-					DescriptorCount = 1,
-				}*/
-				//},
-				//Flags = DescriptorSetLayoutCreateFlags.PushDescriptorKhr
 			});
 			_setLayout = setLayout;
 
 			var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo
 			{
 				SetLayouts = new[] {setLayout},
-				//PushConstantRanges = new PushConstantRange[] { },
 			});
 
 			currentLayout = layout;
@@ -3979,44 +3942,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			var stages = new[] {vertexCreateInfo, fragmentCreateInfo};
 
 			currentStages = stages;
-
-			/*
-			Buffer buffer;
-			DeviceSize bufferSizeii;
-			unsafe
-			{
-				var vertexUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.vertexUniformBuffer;
-				var offset = shaderState.vertexUniformOffset;
-
-				if (vertexUniformBuffer != null)
-				{
-					var size = vertexUniformBuffer->size;
-					var bufferPtr = vertexUniformBuffer->buffer;
-					buffer = MyClass.makeT<Buffer>(bufferPtr);
-					bufferSizeii = size;
-				}
-				else
-				{
-					// todo: handle this case
-					throw new Exception("Unset vertex uniform buffer");
-				}
-
-				var fragmentUniformBuffer = (MojoShader.MOJOSHADER_vkBuffer*) shaderState.fragmentUniformBuffer;
-				// todo: handle when fragment shader has data
-				if (fragmentUniformBuffer != null)
-				{
-					// todo: handle this case
-					throw new Exception("Unset fragment uniform buffer");
-				}
-				else
-				{
-					// todo: handle this case
-				}
-			}
-
-			uniformBufferV = buffer;
-			uniformBufferSizeV = bufferSizeii;
-			*/
 
 			descriptorSets = CreateDescriptorSets();
 			var writeDescriptorSets = new List<WriteDescriptorSet>();

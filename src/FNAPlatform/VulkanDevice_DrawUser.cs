@@ -48,15 +48,6 @@ namespace Microsoft.Xna.Framework.Graphics
 			// only for changes that can happen in-between normal draw calls
 			// and not for wider changes.
 
-			/*
-			 * DepthStencilState.Default;
-            DepthStencilState.None;
-            DepthStencilState.DepthRead;
-            RasterizerState.CullClockwise;
-            RasterizerState.CullNone;
-            RasterizerState.CullCounterClockwise;
-			 */
-
 			var pipeline = device.CreateGraphicsPipelines(null, new[]
 			{
 				new GraphicsPipelineCreateInfo
@@ -69,7 +60,7 @@ namespace Microsoft.Xna.Framework.Graphics
 					},
 					InputAssemblyState = new PipelineInputAssemblyStateCreateInfo
 					{
-						Topology = primitiveTopology, // todo, case off of primitive type
+						Topology = primitiveTopology,
 					},
 					ViewportState = new PipelineViewportStateCreateInfo
 					{
@@ -101,8 +92,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						{
 							new PipelineColorBlendAttachmentState
 							{
-								ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B |
-								                 ColorComponentFlags.A,
+								ColorWriteMask = XNAToVK.ColorWriteMask(blendState.ColorWriteChannels),
 								BlendEnable = true, //todo: is this not always true?
 								SrcColorBlendFactor = XNAToVK.BlendMode[(int) blendState.ColorSourceBlend],
 								DstColorBlendFactor = XNAToVK.BlendMode[(int) blendState.ColorDestinationBlend],
