@@ -1128,10 +1128,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				throw new Exception("Failed to init device");
 			}
 
-			// make instance
-			// make fucker
-			// make physicaldevice, device
-
 			// Log GLDevice info
 			FNALoggerEXT.LogInfo("IGLDevice: VulkanDevice");
 			FNALoggerEXT.LogInfo("Device Name: " + physicalDevice.GetProperties().DeviceName);
@@ -1165,8 +1161,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				var properties = physicalDevice.GetFormatProperties(format);
 			}
 
+			/*
 			var rgbaprops = physicalDevice.GetFormatProperties(Format.R8G8B8A8Unorm);
 			var bgraprops = physicalDevice.GetFormatProperties(Format.B8G8R8A8Unorm);
+			*/
 
 			// Add fallbacks for missing texture formats on NVidia hardware
 			for (int i = 0; i < XNAToVK.TextureFormat.Length; i++)
@@ -1369,6 +1367,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			//var format = Format.R8G8B8A8Unorm;
 			var format = Format.B8G8R8A8Unorm; //todo
 
+			var surfaceFormats = physicalDevice.GetSurfaceFormatsKHR(surface);
+
 			var extent = new Extent2D
 			{
 				Width = width,
@@ -1488,9 +1488,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private RenderPass swapchainRenderPass;
 
-		private Image backImage;
-		private DeviceMemory backImageMemory;
-		private ImageView backImageView;
+		//private Image backImage;
+		//private DeviceMemory backImageMemory;
+		//private ImageView backImageView;
 
 		//private Framebuffer backFramebuffer;
 
@@ -1591,6 +1591,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			//todo: might not be necessary to conver the backbuffer.
 			//todo: since it doesn't get preesnted, it doesn't need conversion.
+
+			var backImage = (Backbuffer as VulkanBackbuffer).ColorBuffer;
 
 			var backBufferBarrier = imageMemoryBarrierz(
 				backImage,
@@ -1727,12 +1729,12 @@ namespace Microsoft.Xna.Framework.Graphics
 				DependencyFlags.ByRegion, null, null, renderEndBarrier);
 
 			// convert backbuffer image to something that can be blitted from
-			var backBufferEndBarrier = imageMemoryBarrierz(backImage, AccessFlags.ColorAttachmentWrite, 0,
+			var backBufferEndBarrier = imageMemoryBarrierz((Backbuffer as VulkanBackbuffer).ColorBuffer, AccessFlags.ColorAttachmentWrite, 0,
 				ImageLayout.ColorAttachmentOptimal, ImageLayout.TransferSrcOptimal);
 			_commandBuffer.CmdPipelineBarrier(PipelineStageFlags.ColorAttachmentOutput, PipelineStageFlags.TopOfPipe,
 				DependencyFlags.ByRegion, null, null, backBufferEndBarrier);
 
-			_commandBuffer.CmdBlitImage(backImage, ImageLayout.TransferSrcOptimal, currentImage,
+			_commandBuffer.CmdBlitImage((Backbuffer as VulkanBackbuffer).ColorBuffer, ImageLayout.TransferSrcOptimal, currentImage,
 				ImageLayout.TransferDstOptimal, new ImageBlit
 				{
 					SrcOffsets = new[]
@@ -1939,7 +1941,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void SetStringMarker(string text)
 		{
-			throw new NotImplementedException();
+#if DEBUG
+			_commandBuffer.CmdDebugMarkerInsertEXT(new DebugMarkerMarkerInfoExt
+			{
+				MarkerName = text,
+			});
+#endif
 		}
 
 		struct CurrentAttachmentState
@@ -3773,7 +3780,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			// Make a new render pass
 
-			var format = Format.B8G8R8A8Unorm;
+			var format = currentColorFormats[0];
 			var depthFormat = Format.D24UnormS8Uint;
 
 			//device.sub
@@ -3862,6 +3869,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				Layers = 1,
 			});
 			*/
+
+			var localFormat = format;
 
 			var framebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
 			{
@@ -4371,7 +4380,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			PresentationParameters presentationParameters
 		)
 		{
-			var format = Format.B8G8R8A8Unorm;//todo
+			//var format = Format.B8G8R8A8Unorm;//todo
+			var format = Format.R8G8B8A8Unorm;//todo
 
 			createImage(
 				swapChainExtent.Width,
@@ -4381,9 +4391,9 @@ namespace Microsoft.Xna.Framework.Graphics
 				ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc,
 				MemoryPropertyFlags.DeviceLocal,
 				out var backBufferImage, out var backbufferImageMemory);
-			backImage = backBufferImage;
-			backImageMemory = backbufferImageMemory;
-			backImageView = device.CreateImageView(new ImageViewCreateInfo
+			//var backImage = backBufferImage;
+			//var backImageMemory = backbufferImageMemory;
+			var backImageView = device.CreateImageView(new ImageViewCreateInfo
 			{
 				Format = format,
 				Image = backBufferImage,
@@ -4406,7 +4416,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				ColorBuffer = backBufferImage,
 				ColorBufferView = backImageView,
-				ColorBufferImageMemory=backbufferImageMemory,
+				ColorBufferImageMemory = backbufferImageMemory,
 			};
 
 			Backbuffer = vkBackbuffer;
