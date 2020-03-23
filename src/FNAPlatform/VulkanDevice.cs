@@ -3870,14 +3870,12 @@ namespace Microsoft.Xna.Framework.Graphics
 			});
 			*/
 
-			var localFormat = format;
-
 			var framebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
 			{
 				RenderPass = renderPass, //todo: needs to be created per render pass?
 				Attachments = new []{currentAttachmentViews[0], depthImageView},
-				Width = swapChainExtent.Width,
-				Height = swapChainExtent.Height,
+				Width = currentAttachmentWidths[0],
+				Height = currentAttachmentHeights[0],
 				Layers = 1,
 			});
 
