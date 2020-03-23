@@ -953,6 +953,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			      || uumessage.Contains("Unloading layer library ")))
 			{
 				Console.WriteLine($"{flags}:{uumessage}");
+				return false;
 			}
 			if (flags.HasFlag(DebugReportFlagsExt.Error))
 			{
@@ -3785,6 +3786,22 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			//device.sub
 
+			// todo: fix this, it pains me
+			var initialLayout = ImageLayout.ColorAttachmentOptimal;
+			var finalLayout = ImageLayout.ColorAttachmentOptimal;
+			if (currentAttachments[0] != (Backbuffer as VulkanBackbuffer).ColorBuffer)
+			{
+				// it hurts, but it goes like this.
+				// we don't know how many renderpasses might be needed for one rendertexutre.
+				// we could maybe do something smart like holding a buffer of draw commands
+				// and then cleverly supply image layout transitions as we flush.
+				// instead, we make it so our render-to-texture attachments always end up in a
+				// shaderreadonlyoptimal state (which might or might not be optimal for writing colors to).
+				// think about how we can track the current layout, and make this code smarter.
+				initialLayout = ImageLayout.Undefined;
+				finalLayout = ImageLayout.ShaderReadOnlyOptimal;
+			}
+
 			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{
 				Attachments = new[]
@@ -3797,8 +3814,8 @@ namespace Microsoft.Xna.Framework.Graphics
 						StoreOp = AttachmentStoreOp.Store,
 						StencilLoadOp = AttachmentLoadOp.DontCare,
 						StencilStoreOp = AttachmentStoreOp.DontCare,
-						InitialLayout = ImageLayout.ColorAttachmentOptimal,
-						FinalLayout = ImageLayout.ColorAttachmentOptimal,
+						InitialLayout = initialLayout, // todo: maybe we can be stupid here, always convert to colorattachmentoptimal?
+						FinalLayout = finalLayout,
 					},
 					new AttachmentDescription
 					{
