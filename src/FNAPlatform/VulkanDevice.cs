@@ -1337,10 +1337,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private Extent2D swapChainExtent;
 
-		private void setupSwapchain(SurfaceCapabilitiesKhr surfaceCaps, uint width, uint height)
+		private void setupSwapchain(SurfaceCapabilitiesKhr surfaceCaps, uint width, uint height, SwapchainKhr oldSwapchain = null)
 		{
-			SwapchainKhr oldSwapchain = null;
-
 			CompositeAlphaFlagsKhr surfaceComposite;
 			if (surfaceCaps.SupportedCompositeAlpha.HasFlag(CompositeAlphaFlagsKhr.Opaque))
 			{
@@ -1544,7 +1542,10 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void ResetBackbuffer(PresentationParameters presentationParameters, GraphicsAdapter adapter)
 		{
-			//throw new NotImplementedException();
+			// probably also rebuild swapchain, regardless of OUT_OF_DATE_KHR
+			Backbuffer.ResetFramebuffer(
+				presentationParameters
+			);
 		}
 
 		ImageMemoryBarrier imageMemoryBarrierz(Image image, AccessFlags srcAccessMask, AccessFlags dstAccessMask,
@@ -3786,6 +3787,9 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			//device.sub
 
+			var attachments = new List<ImageView>();
+			attachments.Add(currentAttachmentViews[0]);
+
 			// todo: fix this, it pains me
 			var initialLayout = ImageLayout.ColorAttachmentOptimal;
 			var finalLayout = ImageLayout.ColorAttachmentOptimal;
@@ -3800,6 +3804,16 @@ namespace Microsoft.Xna.Framework.Graphics
 				// think about how we can track the current layout, and make this code smarter.
 				initialLayout = ImageLayout.Undefined;
 				finalLayout = ImageLayout.ShaderReadOnlyOptimal;
+
+				if (currentDepthFormat == DepthFormat.None)
+				{
+					createImage(currentAttachmentWidths[0], currentAttachmentHeights[0], depthFormat, ImageTiling.Optimal,
+						ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out var depthImage,
+						out var depthImageMemory);
+					var depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
+
+					attachments.Add(depthImageView);
+				}
 			}
 
 			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
