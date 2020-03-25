@@ -774,7 +774,23 @@ namespace Microsoft.Xna.Framework.Graphics
 				DepthFormat depthFormat = presentationParameters.DepthStencilFormat;
 				MultiSampleCount = presentationParameters.MultiSampleCount;
 
+				{
+					int w, h;
+					SDL.SDL_Vulkan_GetDrawableSize(presentationParameters.DeviceWindowHandle, out w, out h);
+					if (w == vkDevice.windowWidth && h == vkDevice.windowHeight)
+						return;
+					vkDevice.windowWidth = (uint) w;
+					vkDevice.windowHeight = (uint) h;
+				}
+
+				var surfaceCaps = vkDevice.physicalDevice.GetSurfaceCapabilitiesKHR(vkDevice.surface);
+
+				var oldSwapchain = vkDevice._swapchainKhr;
+				vkDevice.setupSwapchain(surfaceCaps, vkDevice.windowWidth, vkDevice.windowHeight, oldSwapchain);
+
 				DepthFormat = depthFormat;
+
+				vkDevice.BindBackbuffer();
 			}
 
 			public void CreateFramebuffer(
@@ -1367,6 +1383,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			var format = Format.B8G8R8A8Unorm; //todo
 
 			var surfaceFormats = physicalDevice.GetSurfaceFormatsKHR(surface);
+			// todo: use surfaceFormats
 
 			var extent = new Extent2D
 			{
@@ -1403,6 +1420,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			};
 
+			if (swapchainRenderPass != null)
+			{
+				device.DestroyRenderPass(swapchainRenderPass);
+			}
 			swapchainRenderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{
 				Attachments = new[]
@@ -1452,6 +1473,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			// todo: check h, w against surfaceCaps
 
 			images = device.GetSwapchainImagesKHR(_swapchainKhr);
+			if (imageViews != null)
+			{
+				foreach (var imageView in imageViews)
+				{
+					device.DestroyImageView(imageView);
+				}
+			}
 			imageViews = images.Select(image => device.CreateImageView(new ImageViewCreateInfo
 			{
 				Image = image,
@@ -1465,11 +1493,32 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			})).ToArray();
 
+
+			if (depthImage != null)
+			{
+				device.DestroyImage(depthImage);
+			}
+
+			if (depthImageMemory != null)
+			{
+				device.FreeMemory(depthImageMemory);
+			}
 			createImage(swapChainExtent.Width, swapChainExtent.Height, depthFormat, ImageTiling.Optimal,
 				ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out depthImage,
 				out depthImageMemory);
+			if (depthImageView != null)
+			{
+				device.DestroyImageView(depthImageView);
+			}
 			depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
 
+			if (_framebuffers != null)
+			{
+				foreach (var framebuffer in _framebuffers)
+				{
+					device.DestroyFramebuffer(framebuffer);
+				}
+			}
 			_framebuffers = imageViews.Select(imageView => device.CreateFramebuffer(new FramebufferCreateInfo
 			{
 				RenderPass = swapchainRenderPass,
@@ -1479,8 +1528,10 @@ namespace Microsoft.Xna.Framework.Graphics
 				Layers = 1
 			})).ToArray();
 
-			acquireSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
-			releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
+			if (acquireSemaphore == null)
+				acquireSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
+			if (releaseSemaphore == null)
+				releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
 
 			Console.WriteLine("swp" + _swapchainKhr);
 		}
@@ -1510,6 +1561,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 
 			device.DestroySwapchainKHR(_swapchainKhr);
+
+			device.DestroyImage(depthImage);
+			device.FreeMemory(depthImageMemory);
+			device.DestroyImageView(depthImageView);
 		}
 
 		public void Dispose()
@@ -1535,8 +1590,10 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			device.DestroyRenderPass(swapchainRenderPass);
 
+			cleanupFramebuffers.ForEach(x => device.DestroyFramebuffer(x));
+
 			device.Destroy();
-			instance.DestroySurfaceKHR(surface);
+			//instance.DestroySurfaceKHR(surface);
 			instance.Dispose(); // calls destroy, but more importantly destroys debug callback
 		}
 
@@ -1546,6 +1603,41 @@ namespace Microsoft.Xna.Framework.Graphics
 			Backbuffer.ResetFramebuffer(
 				presentationParameters
 			);
+
+			var format = Format.R8G8B8A8Unorm;//todo
+
+			createImage(
+				swapChainExtent.Width,
+				swapChainExtent.Height,
+				format,
+				ImageTiling.Optimal,
+				ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc,
+				MemoryPropertyFlags.DeviceLocal,
+				out var backBufferImage, out var backbufferImageMemory);
+			//var backImage = backBufferImage;
+			//var backImageMemory = backbufferImageMemory;
+			var backImageView = device.CreateImageView(new ImageViewCreateInfo
+			{
+				Format = format,
+				Image = backBufferImage,
+				ViewType = ImageViewType.View2D,
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = ImageAspectFlags.Color,
+					LevelCount = 1,
+					LayerCount = 1
+				}
+			});
+
+			var backbuffer = (Backbuffer as VulkanBackbuffer);
+			device.DestroyImage(backbuffer.ColorBuffer);
+			backbuffer.ColorBuffer = backBufferImage;
+			device.DestroyImageView(backbuffer.ColorBufferView);
+			backbuffer.ColorBufferView = backImageView;
+			device.FreeMemory(backbuffer.ColorBufferImageMemory);
+			backbuffer.ColorBufferImageMemory = backbufferImageMemory;
+
+			BindBackbuffer();
 		}
 
 		ImageMemoryBarrier imageMemoryBarrierz(Image image, AccessFlags srcAccessMask, AccessFlags dstAccessMask,
@@ -1572,6 +1664,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private bool frameInProgress = false;
 
+		bool resizing;
+
 		public void BeginFrame()
 		{
 			if (frameInProgress) return;
@@ -1579,7 +1673,16 @@ namespace Microsoft.Xna.Framework.Graphics
 			// The cycle begins anew!
 			frameInProgress = true;
 
-			imageIndex = device.AcquireNextImageKHR(_swapchainKhr, ulong.MaxValue, acquireSemaphore);
+			// this can fail if we're resizing?
+			if (resizing)
+			{
+				Console.WriteLine($"On image {imageIndex}");
+				//resizing = false;
+			} else
+			{
+				imageIndex = device.AcquireNextImageKHR(_swapchainKhr, ulong.MaxValue, acquireSemaphore);
+
+			}
 
 			// Console.WriteLine($"kromla index {imageIndex}");
 
@@ -1795,14 +1898,28 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			_commandBuffer.End();
 
-			presentQueue.Submit(new SubmitInfo
-			{
-				WaitSemaphores = new[] {acquireSemaphore},
-				WaitDstStageMask = new[] {PipelineStageFlags.ColorAttachmentOutput},
-				CommandBuffers = new[] {_commandBuffer},
-				SignalSemaphores = new[] {releaseSemaphore}
-			});
 
+			//Semaphore[] waitSemaphores = null;
+
+			var sarbmot = new SubmitInfo
+			{
+				WaitDstStageMask = new[] { PipelineStageFlags.ColorAttachmentOutput },
+				CommandBuffers = new[] { _commandBuffer },
+				SignalSemaphores = new[] { releaseSemaphore }
+			};
+
+			if (resizing)
+			{
+				resizing = false;
+				sarbmot.WaitSemaphores = new Semaphore[] { };
+			} else
+			{
+				sarbmot.WaitSemaphores = new[] { acquireSemaphore };
+			}
+
+			presentQueue.Submit(sarbmot);
+
+			resizing = false;
 			try
 			{
 				presentQueue.PresentKHR(new PresentInfoKhr
@@ -1821,12 +1938,14 @@ namespace Microsoft.Xna.Framework.Graphics
 					 * VK_ERROR_OUT_OF_DATE_KHR:
 					 * The swap chain has become incompatible with the surface and can no longer be used for rendering. Usually happens after a window resize.
 					 */
+					resizing = true;
 				}
 				else
 				{
+					throw new Exception("Failed to present. Needs work.", e);
 				}
 
-				throw new Exception("Failed to present. Needs work.", e);
+
 			}
 
 			graphicsQueue.WaitIdle();
@@ -3708,6 +3827,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private bool depthLoaded = false;
 
+		private List<Framebuffer> cleanupFramebuffers = new List<Framebuffer>();
+
 		private void UpdateRenderPass()
 		{
 			if (!needNewRenderPass) return;
@@ -3812,6 +3933,7 @@ namespace Microsoft.Xna.Framework.Graphics
 						out var depthImageMemory);
 					var depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
 
+					//imageViewsToDestroy.add(depthImageView);
 					attachments.Add(depthImageView);
 				}
 			}
@@ -3909,6 +4031,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				Height = currentAttachmentHeights[0],
 				Layers = 1,
 			});
+			cleanupFramebuffers.Add(framebuffer);
 
 			//currentFramebuffer[0] = backFramebuffer;
 
