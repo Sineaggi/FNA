@@ -746,14 +746,15 @@ namespace Microsoft.Xna.Framework.Graphics
 				uint handle = 0;
 				Handle = handle;
 
+				PixelFormat = Format.R8G8B8A8Unorm;
+				setupBackBuffer();
+
 				if (depthFormat == DepthFormat.None)
 				{
 					// Don't bother creating a depth/stencil buffer.
 					depthStencilAttachment = 0;
 					return;
 				}
-
-				PixelFormat = Format.R8G8B8A8Unorm;
 			}
 
 			public void Dispose()
@@ -783,6 +784,47 @@ namespace Microsoft.Xna.Framework.Graphics
 				DepthFormat = depthFormat;
 
 			}
+
+			private void setupBackBuffer()
+			{
+				var format = PixelFormat;
+				if (ColorBuffer != null)
+				{
+					device.device.DestroyImage(ColorBuffer);
+				}
+
+				if (ColorBufferView != null)
+				{
+					device.device.DestroyImageView(ColorBufferView);
+				}
+
+				if (ColorBufferImageMemory != null)
+				{
+					device.device.FreeMemory(ColorBufferImageMemory);
+				}
+
+				device.createImage(
+					device.swapChainExtent.Width,
+					device.swapChainExtent.Height,
+					format,
+					ImageTiling.Optimal,
+					ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc,
+					MemoryPropertyFlags.DeviceLocal,
+					out ColorBuffer, out ColorBufferImageMemory);
+				ColorBufferView = device.device.CreateImageView(new ImageViewCreateInfo
+				{
+					Format = format,
+					Image = ColorBuffer,
+					ViewType = ImageViewType.View2D,
+					SubresourceRange = new ImageSubresourceRange
+					{
+						AspectMask = ImageAspectFlags.Color,
+						LevelCount = 1,
+						LayerCount = 1
+					}
+				});
+			}
+
 			public void ResetFramebuffer()
 			{
 				{
@@ -803,6 +845,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				var oldSwapchain = device._swapchainKhr;
 				device.setupSwapchain(surfaceCaps, device.windowWidth, device.windowHeight, oldSwapchain);
+
+				setupBackBuffer();
 
 				device.BindBackbuffer();
 			}
@@ -4730,56 +4774,16 @@ private List<PipelineLayout> pipelineLayoutsToDelete = new List<PipelineLayout>(
 			PresentationParameters presentationParameters
 		)
 		{
-			//var format = Format.B8G8R8A8Unorm;//todo
-			var format = Format.R8G8B8A8Unorm;//todo
-
-			createImage(
-				swapChainExtent.Width,
-				swapChainExtent.Height,
-				format,
-				ImageTiling.Optimal,
-				ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc,
-				MemoryPropertyFlags.DeviceLocal,
-				out var backBufferImage, out var backbufferImageMemory);
-			//var backImage = backBufferImage;
-			//var backImageMemory = backbufferImageMemory;
-			var backImageView = device.CreateImageView(new ImageViewCreateInfo
-			{
-				Format = format,
-				Image = backBufferImage,
-				ViewType = ImageViewType.View2D,
-				SubresourceRange = new ImageSubresourceRange
-				{
-					AspectMask = ImageAspectFlags.Color,
-					LevelCount = 1,
-					LayerCount = 1
-				}
-			});
-
 			var vkBackbuffer = new VulkanBackbuffer(
 				this,
 				presentationParameters.BackBufferWidth,
 				presentationParameters.BackBufferHeight,
 				presentationParameters.DepthStencilFormat,
 				presentationParameters.MultiSampleCount
-			)
-			{
-				ColorBuffer = backBufferImage,
-				ColorBufferView = backImageView,
-				ColorBufferImageMemory = backbufferImageMemory,
-			};
+			);
 
 			Backbuffer = vkBackbuffer;
 			vkBackbuffer.CreateFramebuffer(presentationParameters);
-
-
-
-
-
-			//var bb = Backbuffer as VulkanBackbuffer;
-			//bb.ColorBuffer = backBufferImage;
-			//bb.ColorBufferView = backImageView;
-
 		}
 	}
 }
