@@ -683,8 +683,11 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region The Faux-Backbuffer
 
+		private IntPtr DeviceWindowHandle;
+
 		private bool UseFauxBackbuffer(PresentationParameters presentationParameters, DisplayMode mode)
 		{
+			DeviceWindowHandle = presentationParameters.DeviceWindowHandle;
 			int drawX, drawY;
 			SDL.SDL_GL_GetDrawableSize(
 				presentationParameters.DeviceWindowHandle,
@@ -721,7 +724,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			public Image MultiSampleColorBuffer = null;
 			public Image DepthStencilBuffer = null;
 
-			private VulkanDevice vkDevice;
+			private VulkanDevice device;
 
 			public VulkanBackbuffer(
 				VulkanDevice device,
@@ -734,7 +737,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				Width = width;
 				Height = height;
 
-				vkDevice = device;
+				this.device = device;
 				DepthFormat = depthFormat;
 				MultiSampleCount = multiSampleCount;
 				Texture = 0;
@@ -755,12 +758,12 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public void Dispose()
 			{
-				vkDevice.device.DestroyImageView(ColorBufferView);
-				vkDevice.device.DestroyImage(ColorBuffer);
-				vkDevice.device.FreeMemory(ColorBufferImageMemory);
+				device.device.DestroyImageView(ColorBufferView);
+				device.device.DestroyImage(ColorBuffer);
+				device.device.FreeMemory(ColorBufferImageMemory);
 
 				uint handle = Handle;
-				vkDevice = null;
+				device = null;
 				Handle = 0;
 			}
 
@@ -768,29 +771,40 @@ namespace Microsoft.Xna.Framework.Graphics
 				PresentationParameters presentationParameters
 			)
 			{
+				device.DeviceWindowHandle = presentationParameters.DeviceWindowHandle;
 				Width = presentationParameters.BackBufferWidth;
 				Height = presentationParameters.BackBufferHeight;
 
 				DepthFormat depthFormat = presentationParameters.DepthStencilFormat;
 				MultiSampleCount = presentationParameters.MultiSampleCount;
 
-				{
-					int w, h;
-					SDL.SDL_Vulkan_GetDrawableSize(presentationParameters.DeviceWindowHandle, out w, out h);
-					if (w == vkDevice.windowWidth && h == vkDevice.windowHeight)
-						return;
-					vkDevice.windowWidth = (uint) w;
-					vkDevice.windowHeight = (uint) h;
-				}
-
-				var surfaceCaps = vkDevice.physicalDevice.GetSurfaceCapabilitiesKHR(vkDevice.surface);
-
-				var oldSwapchain = vkDevice._swapchainKhr;
-				vkDevice.setupSwapchain(surfaceCaps, vkDevice.windowWidth, vkDevice.windowHeight, oldSwapchain);
+				ResetFramebuffer();
 
 				DepthFormat = depthFormat;
 
-				vkDevice.BindBackbuffer();
+			}
+			public void ResetFramebuffer()
+			{
+				{
+					int w, h;
+					SDL.SDL_Vulkan_GetDrawableSize(device.DeviceWindowHandle, out w, out h);
+					if (w == device.windowWidth && h == device.windowHeight)
+						return;
+					device.windowWidth = (uint) w;
+					device.windowHeight = (uint) h;
+
+					//this is bad. all this code redoes what other code already does. we need
+					//a better way for one singe source of truth. encapsulate that state.
+					Width = w;
+					Height = h;
+				}
+
+				var surfaceCaps = device.physicalDevice.GetSurfaceCapabilitiesKHR(device.surface);
+
+				var oldSwapchain = device._swapchainKhr;
+				device.setupSwapchain(surfaceCaps, device.windowWidth, device.windowHeight, oldSwapchain);
+
+				device.BindBackbuffer();
 			}
 
 			public void CreateFramebuffer(
@@ -798,7 +812,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			)
 			{
 				// This is the default render target
-				vkDevice.SetRenderTargets(null, null, DepthFormat.None);
+				device.SetRenderTargets(null, null, DepthFormat.None);
 			}
 		}
 
@@ -992,6 +1006,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			GraphicsAdapter adapter
 		)
 		{
+			DeviceWindowHandle = presentationParameters.DeviceWindowHandle;
 			//device = MTLCreateSystemDefaultDevice();
 			//queue = mtlNewCommandQueue(device);
 /*
@@ -1234,9 +1249,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			*/
 
+			acquireSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo());
+			releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo());
+
 			// Initialize attachment arrays
 			int numAttachments = GraphicsDevice.MAX_RENDERTARGET_BINDINGS;
 			currentAttachments = new Image[numAttachments];
+			currentAttachmentStructs = new CurrentAttachmentStruct[numAttachments];
 			currentAttachmentViews = new ImageView[numAttachments];
 			currentAttachmentHeights = new uint[numAttachments];
 			currentAttachmentWidths=new uint[numAttachments];
@@ -1355,6 +1374,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private void setupSwapchain(SurfaceCapabilitiesKhr surfaceCaps, uint width, uint height, SwapchainKhr oldSwapchain = null)
 		{
+			Console.WriteLine("craeteing new swapchian");
 			CompositeAlphaFlagsKhr surfaceComposite;
 			if (surfaceCaps.SupportedCompositeAlpha.HasFlag(CompositeAlphaFlagsKhr.Opaque))
 			{
@@ -1528,11 +1548,6 @@ namespace Microsoft.Xna.Framework.Graphics
 				Layers = 1
 			})).ToArray();
 
-			if (acquireSemaphore == null)
-				acquireSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
-			if (releaseSemaphore == null)
-				releaseSemaphore = device.CreateSemaphore(new SemaphoreCreateInfo { });
-
 			Console.WriteLine("swp" + _swapchainKhr);
 		}
 
@@ -1567,6 +1582,14 @@ namespace Microsoft.Xna.Framework.Graphics
 			device.DestroyImageView(depthImageView);
 		}
 
+		List<DescriptorSetDeleteThis> _descriptorSetsToDispose = new List<DescriptorSetDeleteThis>();
+
+		struct DescriptorSetDeleteThis
+		{
+			public DescriptorSet[] _descriptorSets;
+			public DescriptorPool _descriptorPool;
+		}
+
 		public void Dispose()
 		{
 			// Stop rendering
@@ -1586,6 +1609,40 @@ namespace Microsoft.Xna.Framework.Graphics
 			device.DestroySemaphore(acquireSemaphore);
 			device.DestroySemaphore(releaseSemaphore);
 
+			foreach (var descriptorSetDeleteThise in _descriptorSetsToDispose)
+			{
+				if (descriptorSetDeleteThise._descriptorSets != null)
+				{
+					//device.FreeDescriptorSets(descriptorSetDeleteThise._descriptorPool, descriptorSetDeleteThise._descriptorSets);
+				}
+				device.DestroyDescriptorPool(descriptorSetDeleteThise._descriptorPool);
+			}
+			_descriptorSetsToDispose.Clear();
+
+			foreach (var descriptorSetLayout in setLayoutsToDelete)
+			{
+				device.DestroyDescriptorSetLayout(descriptorSetLayout);
+			}
+			setLayoutsToDelete.Clear();
+
+			foreach (var pipeline in _pipelinesToDelete)
+			{
+				device.DestroyPipeline(pipeline);
+			}
+			_pipelinesToDelete.Clear();
+
+			foreach (var pass in _renderPassesToDelete)
+			{
+				device.DestroyRenderPass(pass);
+			}
+			_renderPassesToDelete.Clear();
+
+			foreach (var pipelineLayout in pipelineLayoutsToDelete)
+			{
+				device.DestroyPipelineLayout(pipelineLayout);
+			}
+			pipelineLayoutsToDelete.Clear();
+
 			DestroySwapchain();
 
 			device.DestroyRenderPass(swapchainRenderPass);
@@ -1593,12 +1650,13 @@ namespace Microsoft.Xna.Framework.Graphics
 			cleanupFramebuffers.ForEach(x => device.DestroyFramebuffer(x));
 
 			device.Destroy();
-			//instance.DestroySurfaceKHR(surface);
+			instance.DestroySurfaceKHR(surface);
 			instance.Dispose(); // calls destroy, but more importantly destroys debug callback
 		}
 
 		public void ResetBackbuffer(PresentationParameters presentationParameters, GraphicsAdapter adapter)
 		{
+			DeviceWindowHandle = presentationParameters.DeviceWindowHandle;
 			// probably also rebuild swapchain, regardless of OUT_OF_DATE_KHR
 			Backbuffer.ResetFramebuffer(
 				presentationParameters
@@ -1674,15 +1732,59 @@ namespace Microsoft.Xna.Framework.Graphics
 			frameInProgress = true;
 
 			// this can fail if we're resizing?
-			if (resizing)
-			{
-				Console.WriteLine($"On image {imageIndex}");
-				//resizing = false;
-			} else
-			{
-				imageIndex = device.AcquireNextImageKHR(_swapchainKhr, ulong.MaxValue, acquireSemaphore);
+			// has the new swapchain been created?
+			//if (resizing)
+			//{
+			//Console.WriteLine($"On image {imageIndex} frame in progress {frameInProgress}");
+			//resizing = false;
+			//} else
+			//{
+			//Console.WriteLine($"On image {imageIndex}");
 
+			/*
+			auto newW = 0;
+			auto newH = 0;
+			SDL_Vulkan_GetDrawableSize(window, &newW, &newH);
+			if (newW != w || newH != h) {
+				w = newW;
+				h = newH;
+				resizeSwapchainIfNecessary(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat,
+					renderPass);
+			}*/
+
+			//todo: this code has shown not everything is set up correctly for the new render area.
+			//we need to rethink window resizing.
+			//todo: this might be more correct now.
+			// we now need to make sure anything we were rendering with is fully reset.
+			//todo: also we need to a. not be creating so many shader modules and b. actually free the ones we allocate
+			{
+				int w, h;
+				SDL.SDL_Vulkan_GetDrawableSize(DeviceWindowHandle, out w, out h);
+				if (w != windowWidth || h != windowHeight)
+				{
+					//windowWidth = (uint) w;
+					//windowHeight = (uint) h;
+					//var surfaceCaps = physicalDevice.GetSurfaceCapabilitiesKHR(surface);
+
+					//var oldSwapchain = _swapchainKhr;
+					//setupSwapchain(surfaceCaps, windowWidth, windowHeight, oldSwapchain);
+					//todo: update the VulkanBackbuffer and update the other things
+
+					//BindBackbuffer();
+					if (currentAttachments[0] == (Backbuffer as VulkanBackbuffer).ColorBuffer)
+					{
+						(Backbuffer as VulkanBackbuffer).ResetFramebuffer();
+						//BindBackbuffer();
+						//ResetAttachments();
+					}
+					//todo: needs more work. looks like formats are untransformed. why does this work under normal circumstances?
+				}
 			}
+			imageIndex = device.AcquireNextImageKHR(_swapchainKhr, ulong.MaxValue, acquireSemaphore);
+
+			//Console.WriteLine($"Also now on image {imageIndex}");
+			//}
+			//device.image
 
 			// Console.WriteLine($"kromla index {imageIndex}");
 
@@ -1949,6 +2051,41 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 
 			graphicsQueue.WaitIdle();
+
+			//todo: totally unecessary and needs to be thought out better.
+			foreach (var descriptorSet in _descriptorSetsToDispose)
+			{
+				if (descriptorSet._descriptorSets != null)
+				{
+					//device.FreeDescriptorSets(descriptorSet._descriptorPool, descriptorSet._descriptorSets);
+				}
+				device.DestroyDescriptorPool(descriptorSet._descriptorPool);
+			}
+			_descriptorSetsToDispose.Clear();
+
+			foreach (var descriptorSetLayout in setLayoutsToDelete)
+			{
+				device.DestroyDescriptorSetLayout(descriptorSetLayout);
+			}
+			setLayoutsToDelete.Clear();
+
+			foreach (var pipeline in _pipelinesToDelete)
+			{
+				device.DestroyPipeline(pipeline);
+			}
+			_pipelinesToDelete.Clear();
+
+			foreach (var pass in _renderPassesToDelete)
+			{
+				device.DestroyRenderPass(pass);
+			}
+			_renderPassesToDelete.Clear();
+
+			foreach (var pipelineLayout in pipelineLayoutsToDelete)
+			{
+				device.DestroyPipelineLayout(pipelineLayout);
+			}
+			pipelineLayoutsToDelete.Clear();
 
 			// Reset buffers
 			for (int i = 0; i < Buffers.Count; i += 1)
@@ -2233,15 +2370,24 @@ namespace Microsoft.Xna.Framework.Graphics
 				MaxSets = 1
 			};
 			// todo: delete the fuck out of this
-			var descriptorPool = device.CreateDescriptorPool(descriptorPoolCreateInfo);
 
+			var descriptorPool = device.CreateDescriptorPool(descriptorPoolCreateInfo);
 			var descriptorSetAllocateInfo = new DescriptorSetAllocateInfo
 			{
 				SetLayouts = new DescriptorSetLayout[] {_setLayout},
 				DescriptorPool = descriptorPool
 			};
 
-			return device.AllocateDescriptorSets(descriptorSetAllocateInfo);
+			var descriptorSets = device.AllocateDescriptorSets(descriptorSetAllocateInfo);
+
+
+			_descriptorSetsToDispose.Add(new DescriptorSetDeleteThis
+			{
+				_descriptorSets = descriptorSets,
+				_descriptorPool = descriptorPool,
+			});
+
+			return descriptorSets;
 		}
 
 		private uint getMemoryTypeIndex(uint memoryTypeBits, MemoryPropertyFlags properties)
@@ -2604,8 +2750,26 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#region Render Target Cache Variables
 
+		enum CurrentAttachmentUsage
+		{
+			None,
+			BackBuffer,
+			RenderTarget,
+		}
+
+		struct CurrentAttachmentStruct
+		{
+			public CurrentAttachmentUsage Usage;
+			public Image Image;
+			public ImageView ImageView;
+			public uint Width;
+			public uint Height;
+			public Format ColorFormat;
+		}
+
 		private readonly Image[] currentAttachments;
 		private readonly ImageView[] currentAttachmentViews;
+		private readonly CurrentAttachmentStruct[] currentAttachmentStructs;
 		private readonly uint[] currentAttachmentWidths;
 		private readonly uint[] currentAttachmentHeights;
 		private readonly Format[] currentColorFormats;
@@ -2668,6 +2832,15 @@ namespace Microsoft.Xna.Framework.Graphics
 					var renderTarget = renderTargets[i].RenderTarget as RenderTarget2D;
 					VulkanTexture tex = renderTarget.texture as VulkanTexture;
 					currentAttachments[i] = tex.Image; //todo
+					currentAttachmentStructs[i] = new CurrentAttachmentStruct
+					{
+						Usage = CurrentAttachmentUsage.RenderTarget,
+						Image = tex.Image,
+						ImageView = tex.ImageView,
+						Width = tex.Width,
+						Height = tex.Height,
+						ColorFormat = XNAToVK.TextureFormat[(int) tex.Format],
+					};
 					currentAttachmentViews[i] = tex.ImageView; //todo;
 					currentAttachmentHeights[i] = tex.Height;
 					currentAttachmentWidths[i] = tex.Width;
@@ -2695,6 +2868,10 @@ namespace Microsoft.Xna.Framework.Graphics
 			for (int i = 0; i < currentAttachments.Length; i += 1)
 			{
 				currentAttachments[i] = null;
+				currentAttachmentStructs[i] = new CurrentAttachmentStruct
+				{
+					Usage = CurrentAttachmentUsage.None,
+				};
 				//currentAttachmentViews[i] = null;
 				currentColorFormats[i] = Format.Undefined;
 				currentMSAttachments[i] = null;
@@ -2710,6 +2887,15 @@ namespace Microsoft.Xna.Framework.Graphics
 		{
 			VulkanBackbuffer bb = Backbuffer as VulkanBackbuffer;
 			currentAttachments[0] = bb.ColorBuffer;
+			currentAttachmentStructs[0] = new CurrentAttachmentStruct
+			{
+				Usage = CurrentAttachmentUsage.BackBuffer,
+				Width = (uint)bb.Width,
+				Height = (uint)bb.Height,
+				Image = bb.ColorBuffer,
+				ImageView = bb.ColorBufferView,
+				ColorFormat = bb.PixelFormat,
+			};
 			currentAttachmentViews[0] = bb.ColorBufferView;
 			currentAttachmentWidths[0] = (uint)bb.Width;
 			currentAttachmentHeights[0] = (uint)bb.Height;
@@ -4012,6 +4198,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			});
 
+			_renderPassesToDelete.Add(renderPass);
+
 			/*
 			backFramebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
 			{
@@ -4087,6 +4275,8 @@ namespace Microsoft.Xna.Framework.Graphics
 		private VulkanBuffer userIndexBuffer = null;
 		private int userVertexStride = 0;
 
+		private List<RenderPass> _renderPassesToDelete = new List<RenderPass>();
+
 		// Some vertex declarations may have overlapping attributes :/
 		private bool[,] attrUse = new bool[(int) MojoShader.MOJOSHADER_usage.MOJOSHADER_USAGE_TOTAL, 16];
 
@@ -4121,6 +4311,8 @@ namespace Microsoft.Xna.Framework.Graphics
 		private PipelineShaderStageCreateInfo[] currentStages;
 		private PipelineLayout currentLayout;
 
+		private List<DescriptorSetLayout> setLayoutsToDelete = new List<DescriptorSetLayout>();
+private List<PipelineLayout> pipelineLayoutsToDelete = new List<PipelineLayout>();
 		private void BindResources()
 		{
 			getMaybeCachedShaders(out var fshader, out var fname, out var vshader, out var vname);
@@ -4162,12 +4354,18 @@ namespace Microsoft.Xna.Framework.Graphics
 			{
 				Bindings = descriptorSetLayoutBindings.ToArray(),
 			});
+			if (_setLayout != null)
+			{
+				setLayoutsToDelete.Add(_setLayout);
+			}
 			_setLayout = setLayout;
 
 			var layout = device.CreatePipelineLayout(new PipelineLayoutCreateInfo
 			{
 				SetLayouts = new[] {setLayout},
 			});
+
+			pipelineLayoutsToDelete.Add(layout);
 
 			currentLayout = layout;
 

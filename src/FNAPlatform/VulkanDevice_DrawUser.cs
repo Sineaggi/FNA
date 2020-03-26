@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 using Vulkan;
@@ -112,8 +113,12 @@ namespace Microsoft.Xna.Framework.Graphics
 				}
 			})[0];
 
+			_pipelinesToDelete.Add(pipeline);
+
 			_commandBuffer.CmdBindPipeline(PipelineBindPoint.Graphics, pipeline);
 		}
+
+		List<Pipeline> _pipelinesToDelete = new List<Pipeline>();
 
 		public void DrawUserPrimitives(
 			PrimitiveType primitiveType,
