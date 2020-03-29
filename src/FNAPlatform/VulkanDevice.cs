@@ -943,10 +943,30 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		#endregion
 
-		public bool SupportsDxt1 { get; }
-		public bool SupportsS3tc { get; }
-		public bool SupportsHardwareInstancing { get; }
-		public bool SupportsNoOverwrite { get; }
+		public bool SupportsDxt1
+		{
+			get;
+			private set;
+		}
+
+		public bool SupportsS3tc
+		{
+			get;
+			private set;
+		}
+
+		public bool SupportsHardwareInstancing
+		{
+			get
+			{
+				return true;
+			}
+		}
+
+		public bool SupportsNoOverwrite
+		{
+			get { return true; }
+		}
 
 		public int MaxTextureSlots
 		{
@@ -1219,6 +1239,9 @@ namespace Microsoft.Xna.Framework.Graphics
 				XNAToVK.TextureFormat[(int) SurfaceFormat.Bgra4444]
 					= Format.B8G8R8A8Unorm;
 			}
+
+			// todo: get this support?
+			SupportsS3tc = SupportsDxt1 = true;
 
 			// Initialize texture and sampler collections
 			Textures = new VulkanTexture[MaxTextureSlots];
@@ -1806,21 +1829,16 @@ namespace Microsoft.Xna.Framework.Graphics
 				SDL.SDL_Vulkan_GetDrawableSize(DeviceWindowHandle, out w, out h);
 				if (w != windowWidth || h != windowHeight)
 				{
-					//windowWidth = (uint) w;
-					//windowHeight = (uint) h;
-					//var surfaceCaps = physicalDevice.GetSurfaceCapabilitiesKHR(surface);
+					//todo: perhaps we just ignore this? we continue to ignore new frame
+					//requests until the resize event comes in
 
-					//var oldSwapchain = _swapchainKhr;
-					//setupSwapchain(surfaceCaps, windowWidth, windowHeight, oldSwapchain);
-					//todo: update the VulkanBackbuffer and update the other things
-
-					//BindBackbuffer();
-					if (currentAttachments[0] == (Backbuffer as VulkanBackbuffer).ColorBuffer)
-					{
+					//todo: only rebind if one of the attachments are the backbuffer
+					//if (currentAttachments[0] == (Backbuffer as VulkanBackbuffer).ColorBuffer)
+					//{
 						(Backbuffer as VulkanBackbuffer).ResetFramebuffer();
 						//BindBackbuffer();
 						//ResetAttachments();
-					}
+					//}
 					//todo: needs more work. looks like formats are untransformed. why does this work under normal circumstances?
 				}
 			}
@@ -3007,7 +3025,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			else
 			{
-				usageFlags = ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled;
+				usageFlags = ImageUsageFlags.ColorAttachment | ImageUsageFlags.Sampled | ImageUsageFlags.TransferSrc;
 			}
 
 			var textureImage = device.CreateImage(new ImageCreateInfo
@@ -3407,7 +3425,30 @@ namespace Microsoft.Xna.Framework.Graphics
 			int subX, int subY,
 			int subW, int subH, IntPtr data, int startIndex, int elementCount, int elementSizeInBytes)
 		{
-			throw new NotImplementedException();
+			var vulkanTexture = (texture as VulkanTexture);
+			var image = vulkanTexture.Image;
+
+			int dataLength = width * height * 4; // todo calc datalength
+			DeviceSize imageSize = dataLength;
+
+			createBuffer(dataLength, BufferUsageFlags.TransferDst,
+				MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent, out var stagingBuffer,
+				out var stagingBufferMemory);
+
+			var src = device.MapMemory(stagingBufferMemory, 0, imageSize, 0);
+			SDL.SDL_memcpy(data, src, (IntPtr) dataLength);
+			device.UnmapMemory(stagingBufferMemory);
+
+			transitionImageLayout(image, (uint) level, XNAToVK.TextureFormat[(int) format], ImageLayout.ShaderReadOnlyOptimal,
+				ImageLayout.TransferSrcOptimal);
+			copyImageToBuffer(image, stagingBuffer, (uint) level, (uint) width, (uint) height);
+			transitionImageLayout(image, (uint) level, XNAToVK.TextureFormat[(int) format],
+				ImageLayout.TransferSrcOptimal, ImageLayout.ShaderReadOnlyOptimal);
+
+			device.DestroyBuffer(stagingBuffer);
+			device.FreeMemory(stagingBufferMemory);
+
+			//throw new NotImplementedException();
 		}
 
 		public void GetTextureData3D(IGLTexture texture, SurfaceFormat format, int left, int top, int front, int right,
@@ -3699,6 +3740,21 @@ namespace Microsoft.Xna.Framework.Graphics
 
 				sourceStage = PipelineStageFlags.Transfer;
 				destinationStage = PipelineStageFlags.FragmentShader;
+			}else if (oldLayout == ImageLayout.ShaderReadOnlyOptimal && newLayout == ImageLayout.TransferSrcOptimal)
+			{
+				barrier.SrcAccessMask = AccessFlags.ShaderRead;
+				barrier.DstAccessMask = AccessFlags.TransferRead;
+
+				sourceStage = PipelineStageFlags.FragmentShader;
+				destinationStage = PipelineStageFlags.Transfer;
+			}
+			else if (oldLayout == ImageLayout.TransferSrcOptimal && newLayout == ImageLayout.ShaderReadOnlyOptimal)
+			{
+				barrier.SrcAccessMask = AccessFlags.TransferRead;
+				barrier.DstAccessMask = AccessFlags.ShaderRead;
+
+				sourceStage = PipelineStageFlags.Transfer;
+				destinationStage = PipelineStageFlags.FragmentShader;
 			}
 			else
 			{
@@ -3710,6 +3766,37 @@ namespace Microsoft.Xna.Framework.Graphics
 				null,
 				null,
 				barrier);
+
+			endSingleTimeCommands(commandBuffer);
+		}
+
+		void copyImageToBuffer(Image image, Buffer buffer, uint level, uint width, uint height)
+		{
+			CommandBuffer commandBuffer = beginSingleTimeCommands();
+
+			commandBuffer.CmdCopyImageToBuffer(image, ImageLayout.TransferSrcOptimal, buffer, new BufferImageCopy
+			{
+				BufferOffset = 0,//todo
+				BufferRowLength = 0,//todo
+				BufferImageHeight = 0,//todo
+				ImageSubresource = new ImageSubresourceLayers
+				{
+					AspectMask = ImageAspectFlags.Color,
+					MipLevel = level,
+					BaseArrayLayer = 0,
+					LayerCount = 1,
+				},
+				ImageOffset = new Offset3D//todo
+				{
+					X = 0, Y = 0, Z = 0
+				},
+				ImageExtent = new Extent3D//todo
+				{
+					Width = width,
+					Height = height,
+					Depth = 1,
+				}
+			});
 
 			endSingleTimeCommands(commandBuffer);
 		}
@@ -3980,7 +4067,10 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private IntPtr currentVertexDescriptor; // MTLVertexDescriptor*
 
-		public void ApplyVertexAttributes(VertexBufferBinding[] bindings, int numBindings, bool bindingsUpdated,
+		public void ApplyVertexAttributes(
+			VertexBufferBinding[] bindings,
+			int numBindings,
+			bool bindingsUpdated,
 			int baseVertex)
 		{
 			// Translate the bindings array into a descriptor
@@ -4006,6 +4096,9 @@ namespace Microsoft.Xna.Framework.Graphics
 						(vertexBuffer.buffer as VulkanBuffer).InternalOffset
 					);
 
+					//todo: because of the clearing of the ldVertexBuffers, we always rebind.
+					//hell, we might have to regardless, as cmdbindvertexbuffer doesn't take an offset-only buffer
+					//and even then, we'd only end up not binding when it's already bound. :shrug:
 					ulong handle = ((INonDispatchableHandleMarshalling) (vertexBuffer.buffer as VulkanBuffer).Buffer)
 						.Handle;
 					(vertexBuffer.buffer as VulkanBuffer).Bound();
@@ -4156,17 +4249,20 @@ namespace Microsoft.Xna.Framework.Graphics
 				initialLayout = ImageLayout.Undefined;
 				finalLayout = ImageLayout.ShaderReadOnlyOptimal;
 
-				if (currentDepthFormat == DepthFormat.None)
+				if (currentDepthFormat != DepthFormat.None)
 				{
 					createImage(currentAttachmentWidths[0], currentAttachmentHeights[0], depthFormat, ImageTiling.Optimal,
 						ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out var depthImage,
 						out var depthImageMemory);
+					//todo: free all of this
 					var depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
 
 					//imageViewsToDestroy.add(depthImageView);
 					attachments.Add(depthImageView);
 				}
 			}
+
+			var attachmentDescriptions = new List<AttachmentDescription>();
 
 			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
 			{

@@ -23,7 +23,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			_commandBuffer.CmdBindIndexBuffer(
 				indexBuffer.Buffer,
 				totalIndexOffset,
-				Vulkan.IndexType.Uint16 // todo: fix this hard-coded value
+				XNAToVK.IndexType[(int) indices.IndexElementSize]
 			);
 
 			// Bind the pipeline
