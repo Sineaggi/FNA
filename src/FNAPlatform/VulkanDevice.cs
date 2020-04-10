@@ -133,16 +133,23 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			public int MultiSampleCount { get; private set; }
 
+			private Device _device;
+
 			public VulkanRenderbuffer(
+				Device device,
 				Image handle,
 				Format pixelFormat,
 				int multiSampleCount,
 				Image multiSampleHandle
 			)
 			{
+				_device = device;
+
+				Handle = handle;
 			}
 
 			public VulkanRenderbuffer(
+				Device device,
 				Image handle,
 				ImageView viewHandle,
 				Format pixelFormat,
@@ -151,6 +158,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				ImageView multiSampleViewHandle
 			)
 			{
+				_device = device;
+
 				Handle = handle;
 				ImageView = viewHandle;
 				PixelFormat = pixelFormat;
@@ -164,6 +173,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				{
 					//todo
 					//objc_release(Handle);
+					_device.DestroyImage(Handle);
+
 					Handle = null;
 				}
 				else
@@ -1115,6 +1126,36 @@ namespace Microsoft.Xna.Framework.Graphics
 				throw new Exception("Could nof ind a fisical depice");
 			}
 
+			var physicalDeviceProperties = physicalDevice.GetProperties();
+			var driverVersion = physicalDeviceProperties.DriverVersion;
+			var vendorId = physicalDeviceProperties.VendorId;
+			string driverParsed;
+			if (vendorId == 4318)
+			{
+				driverParsed = string.Format("{0}.{1}.{2}.{3}",
+					(driverVersion >> 22) & 0x3ff,
+					(driverVersion >> 14) & 0x0ff,
+					(driverVersion >> 6) & 0x0ff,
+					(driverVersion) & 0x003f
+				);
+			}
+			else if (vendorId == 0x8086 && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				driverParsed = string.Format("{0}.{1}",
+					(driverVersion >> 14),
+					(driverVersion) & 0x3fff
+				);
+			}
+			else
+			{
+				driverParsed = string.Format("{0}.{1}.{2}",
+					(driverVersion >> 22),
+					(driverVersion >> 12) & 0x3ff,
+					(driverVersion) & 0xfff
+				);
+			}
+			Console.WriteLine($"got version {driverParsed}");
+
 			_deviceMemoryProperties = physicalDevice.GetMemoryProperties();
 
 			// surface
@@ -1691,6 +1732,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				device.DestroyDescriptorSetLayout(descriptorSetLayout);
 			}
 			setLayoutsToDelete.Clear();
+			// also destroy currently active one
+			device.DestroyDescriptorSetLayout(_setLayout);
 
 			foreach (var pipeline in _pipelinesToDelete)
 			{
@@ -1709,6 +1752,27 @@ namespace Microsoft.Xna.Framework.Graphics
 				device.DestroyPipelineLayout(pipelineLayout);
 			}
 			pipelineLayoutsToDelete.Clear();
+
+			{ // todo: should we be creating new depth images every pipeline?
+				foreach (var cleanupDepthView in cleanupDepthViews)
+				{
+					device.DestroyImageView(cleanupDepthView);
+				}
+
+				cleanupDepthViews.Clear();
+				foreach (var cleanupDepthImage in cleanupDepthImages)
+				{
+					device.DestroyImage(cleanupDepthImage);
+				}
+
+				cleanupDepthImages.Clear();
+				foreach (var cleanupDepthMemory in cleanupDepthMemories)
+				{
+					device.FreeMemory(cleanupDepthMemory);
+				}
+
+				cleanupDepthMemories.Clear();
+			}
 
 			DestroySwapchain();
 
@@ -1877,7 +1941,23 @@ namespace Microsoft.Xna.Framework.Graphics
 
 
 
-			// flipping the viewport coords is core in vulkan 1.1
+			// flipping the viewport coords is core in vulkan 1.1\
+
+
+			/*
+			_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
+			{
+				X = viewport.X,
+				Y = viewport.Height + viewport.Y,
+				Width = viewport.Width,
+				Height = -viewport.Height,
+				MaxDepth = depthRangeMax,
+				MinDepth = depthRangeMin,
+			});
+			*/
+
+
+			/*
 			_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
 			{
 				Height = -windowHeight,
@@ -1887,6 +1967,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				MaxDepth = 1,
 				MinDepth = 0,
 			});
+			*/
 
 			_commandBuffer.CmdSetScissor(0, new Rect2D
 			{
@@ -2149,6 +2230,22 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 			pipelineLayoutsToDelete.Clear();
 
+			foreach (var cleanupDepthView in cleanupDepthViews)
+			{
+				device.DestroyImageView(cleanupDepthView);
+			}
+			cleanupDepthViews.Clear();
+			foreach (var cleanupDepthImage in cleanupDepthImages)
+			{
+				device.DestroyImage(cleanupDepthImage);
+			}
+			cleanupDepthImages.Clear();
+			foreach (var cleanupDepthMemory in cleanupDepthMemories)
+			{
+				device.FreeMemory(cleanupDepthMemory);
+			}
+			cleanupDepthMemories.Clear();
+
 			// Reset buffers
 			for (int i = 0; i < Buffers.Count; i += 1)
 			{
@@ -2364,9 +2461,31 @@ namespace Microsoft.Xna.Framework.Graphics
 			}
 		}
 
+		struct ShaderBlock
+		{
+			public ShaderModule fshader;
+			public String fname;
+			public ShaderModule vshader;
+			public String vname;
+		}
+
+		private Dictionary<Tuple<IntPtr, IntPtr>, ShaderBlock> shaderCache
+			= new Dictionary<Tuple<IntPtr, IntPtr>, ShaderBlock>();
+
 		void getMaybeCachedShaders(out ShaderModule fshader, out String fname, out ShaderModule vshader,
 			out String vname)
 		{
+			ShaderBlock shaderBlock;
+			var key = Tuple.Create(shaderState.fragmentShader, shaderState.vertexShader);
+			if (shaderCache.TryGetValue(key, out shaderBlock))
+			{
+				fshader = shaderBlock.fshader;
+				fname = shaderBlock.fname;
+				vshader = shaderBlock.vshader;
+				vname = shaderBlock.vname;
+				return;
+			}
+
 			var fieldInfo = typeof(ShaderModule).GetField("m", BindingFlags.NonPublic | BindingFlags.Instance);
 			Debug.Assert(fieldInfo != null);
 			unsafe
@@ -2406,6 +2525,13 @@ namespace Microsoft.Xna.Framework.Graphics
 				//Console.WriteLine($"{((IMarshalling)fola).Handle}");
 				//var s = 2;
 			}
+
+			shaderBlock.fshader = fshader;
+			shaderBlock.fname = fname;
+			shaderBlock.vshader = vshader;
+			shaderBlock.vname = vname;
+
+			shaderCache.Add(key, shaderBlock);
 		}
 
 		private DescriptorSet[] descriptorSets;
@@ -2533,15 +2659,15 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private void SetEncoderViewport()
 		{
+			//todo: this appears to be broken. we're still having troubles.
 			if (renderCommandEncoder != IntPtr.Zero && !needNewRenderPass)
 			{
-				Debug.Assert(viewport.X == 0);
-				Debug.Assert(viewport.Y == 0);
+			//if (renderCommandEncoder != IntPtr.Zero)
+			//	{
 				_commandBuffer.CmdSetViewport(0, new Vulkan.Viewport
 				{
-					//todo: is this right? what if x and y are set?
-					X = 0,
-					Y = viewport.Height,
+					X = viewport.X,
+					Y = viewport.Height + viewport.Y,
 					Width = viewport.Width,
 					Height = -viewport.Height,
 					MaxDepth = depthRangeMax,
@@ -3511,6 +3637,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			// We're done!
 			return new VulkanRenderbuffer(
+				device,
 				(texture as VulkanTexture).Image,
 				(texture as VulkanTexture).ImageView,
 				pixelFormat,
@@ -3567,11 +3694,20 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			// We're done!
 			return new VulkanRenderbuffer(
+				device,
 				colorImage,
 				pixelFormat,
 				sampleCount,
 				null
 			);
+		}
+
+		private void DeleteRenderbuffer(IGLRenderbuffer renderbuffer)
+		{
+			VulkanRenderbuffer rb = renderbuffer as VulkanRenderbuffer;
+			//bool isDepthStencil = rb.MultiSampleHandle == IntPtr.Zero;
+
+			rb.Dispose();
 		}
 
 		private int GetCompatibleSampleCount(int sampleCount)
@@ -3595,7 +3731,8 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		public void AddDisposeRenderbuffer(IGLRenderbuffer renderbuffer)
 		{
-			throw new NotImplementedException();
+			DeleteRenderbuffer(renderbuffer);
+			//throw new NotImplementedException();
 		}
 
 		public IGLBuffer GenVertexBuffer(bool dynamic, BufferUsage usage, int vertexCount, int vertexStride)
@@ -3976,7 +4113,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			if (vkEffect == IntPtr.Zero)
 			{
 				throw new InvalidOperationException(
-					MojoShader.MOJOSHADER_mtlGetError()
+					MojoShader.MOJOSHADER_mtlGetError() // todo: remove mtl
 				);
 			}
 
@@ -4152,6 +4289,10 @@ namespace Microsoft.Xna.Framework.Graphics
 
 		private List<Framebuffer> cleanupFramebuffers = new List<Framebuffer>();
 
+		private List<DeviceMemory> cleanupDepthMemories = new List<DeviceMemory>();
+		private List<ImageView> cleanupDepthViews = new List<ImageView>();
+		private List<Image> cleanupDepthImages = new List<Image>();
+
 		private void UpdateRenderPass()
 		{
 			if (!needNewRenderPass) return;
@@ -4198,6 +4339,7 @@ namespace Microsoft.Xna.Framework.Graphics
 
 			var depthLoadOp = AttachmentLoadOp.DontCare;
 			var depthInitialLayout = ImageLayout.Undefined;
+			/*
 			if (depthLoaded == false)
 			{
 				depthLoaded = true;
@@ -4211,6 +4353,7 @@ namespace Microsoft.Xna.Framework.Graphics
 				//todo: we transfer depth to be read only, how?
 				//transitionImageLayout(depthImage, 0, Format.D16Unorm, ImageLayout.DepthStencilAttachmentOptimal, ImageLayout.DepthStencilReadOnlyOptimal);
 			}
+			*/
 			if (shouldClearDepth)
 			{
 				depthLoadOp = AttachmentLoadOp.Clear;
@@ -4247,76 +4390,105 @@ namespace Microsoft.Xna.Framework.Graphics
 				// shaderreadonlyoptimal state (which might or might not be optimal for writing colors to).
 				// think about how we can track the current layout, and make this code smarter.
 				initialLayout = ImageLayout.Undefined;
+				//todo: we can base the initial layout on what the shader is currently set to.
+				//in fact, we might always be able to do that.
+				// final layout could go both wait. always be shaderreadonly, or something else.
 				finalLayout = ImageLayout.ShaderReadOnlyOptimal;
+			}
 
-				if (currentDepthFormat != DepthFormat.None)
-				{
-					createImage(currentAttachmentWidths[0], currentAttachmentHeights[0], depthFormat, ImageTiling.Optimal,
-						ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out var depthImage,
-						out var depthImageMemory);
-					//todo: free all of this
-					var depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
+			if (currentDepthFormat != DepthFormat.None)
+			{
+				createImage(currentAttachmentWidths[0], currentAttachmentHeights[0], depthFormat, ImageTiling.Optimal,
+					ImageUsageFlags.DepthStencilAttachment, MemoryPropertyFlags.DeviceLocal, out var depthImage,
+					out var depthImageMemory);
 
-					//imageViewsToDestroy.add(depthImageView);
-					attachments.Add(depthImageView);
-				}
+				cleanupDepthMemories.Add(depthImageMemory);
+				cleanupDepthImages.Add(depthImage);
+
+				//todo: free all of this
+				//todo: find a better way to allocate this (pre-allocate for example?)
+				var depthImageView = createImageView(depthImage, depthFormat, ImageAspectFlags.Depth);
+
+				cleanupDepthViews.Add(depthImageView);
+
+				//imageViewsToDestroy.add(depthImageView);
+				attachments.Add(depthImageView);
 			}
 
 			var attachmentDescriptions = new List<AttachmentDescription>();
 
-			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
+			attachmentDescriptions.Add(new AttachmentDescription
 			{
-				Attachments = new[]
+				Format = format,
+				Samples = SampleCountFlags.Count1,
+				LoadOp = colorLoadOp, //todo: needs to be generated from clear booleans
+				StoreOp = AttachmentStoreOp.Store,
+				StencilLoadOp = AttachmentLoadOp.DontCare,
+				StencilStoreOp = AttachmentStoreOp.DontCare,
+				InitialLayout =
+					initialLayout, // todo: maybe we can be stupid here, always convert to colorattachmentoptimal?
+				FinalLayout = finalLayout,
+			});
+
+			if (currentDepthFormat != DepthFormat.None) {
+				attachmentDescriptions.Add(new AttachmentDescription
 				{
-					new AttachmentDescription
-					{
-						Format = format,
-						Samples = SampleCountFlags.Count1,
-						LoadOp = colorLoadOp, //todo: needs to be generated from clear booleans
-						StoreOp = AttachmentStoreOp.Store,
-						StencilLoadOp = AttachmentLoadOp.DontCare,
-						StencilStoreOp = AttachmentStoreOp.DontCare,
-						InitialLayout = initialLayout, // todo: maybe we can be stupid here, always convert to colorattachmentoptimal?
-						FinalLayout = finalLayout,
-					},
-					new AttachmentDescription
-					{
-						Format = depthFormat,
-						Samples = SampleCountFlags.Count1,
-						LoadOp = depthLoadOp,
-						StoreOp = AttachmentStoreOp.Store, //todo: might have to store depth?
-						StencilLoadOp = AttachmentLoadOp.DontCare, //todo: stencil?
-						StencilStoreOp = AttachmentStoreOp.DontCare, //todo: stencil?
-						InitialLayout = depthInitialLayout,
-						FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
-					}
+					Format = depthFormat,
+					Samples = SampleCountFlags.Count1,
+					LoadOp = depthLoadOp,
+					StoreOp = AttachmentStoreOp.Store, //todo: might have to store depth?
+					StencilLoadOp = AttachmentLoadOp.DontCare, //todo: stencil?
+					StencilStoreOp = AttachmentStoreOp.DontCare, //todo: stencil?
+					InitialLayout = depthInitialLayout,
+					FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
+				});
+			}
+
+			AttachmentReference[] colorAttachments = { new AttachmentReference
+			{
+				Attachment = 0,
+				Layout = ImageLayout.ColorAttachmentOptimal,
+			} };
+
+			AttachmentReference depthStencilAttachment = new AttachmentReference
+			{
+				Attachment = UInt32.MaxValue,
+				Layout = ImageLayout.Undefined,
+			};
+			if (currentDepthFormat != DepthFormat.None)
+			{
+				depthStencilAttachment = new AttachmentReference
+				{
+					Attachment = 1,
+					Layout = ImageLayout.DepthStencilAttachmentOptimal,
+				};
+			}
+
+			var subpassDependencies = new[]
+			{
+				new SubpassDependency
+				{
+					SrcSubpass = uint.MaxValue,
+					DstSubpass = 0,
+					SrcStageMask = PipelineStageFlags.ColorAttachmentOutput,
+					SrcAccessMask = AccessFlags.ColorAttachmentRead,
+					DstStageMask = PipelineStageFlags.ColorAttachmentOutput,
+					DstAccessMask = AccessFlags.ColorAttachmentWrite,
 				},
-				Subpasses = new[]
+				new SubpassDependency
 				{
-					new SubpassDescription
-					{
-						PipelineBindPoint = PipelineBindPoint.Graphics,
-						ColorAttachments = new[]
-						{
-							new AttachmentReference
-							{
-								Attachment = 0,
-								Layout = ImageLayout.ColorAttachmentOptimal,
-							}
-						},
-						DepthStencilAttachment = new AttachmentReference
-						{
-							Attachment = 1,
-							Layout = ImageLayout.DepthStencilAttachmentOptimal,
-						}
-					}
-				},
-				Dependencies = new[]
+					SrcSubpass = 0,
+					DstSubpass = uint.MaxValue,
+					SrcStageMask = PipelineStageFlags.ColorAttachmentOutput,
+					SrcAccessMask = AccessFlags.ColorAttachmentRead,
+					DstStageMask = PipelineStageFlags.ColorAttachmentOutput,
+					DstAccessMask = AccessFlags.ColorAttachmentWrite,
+				}
+			};
+			if (currentDepthFormat != DepthFormat.None)
+			{
+				subpassDependencies = new[]
 				{
-					//todo: figure out this mess
-					//it got messy tryna figure out where depth was supposed to go
-					//how it was supposed to be stored, then reused
-					//for the lensflare test (using occlusion queries)
 					new SubpassDependency
 					{
 						SrcSubpass = uint.MaxValue,
@@ -4335,7 +4507,22 @@ namespace Microsoft.Xna.Framework.Graphics
 						DstStageMask = PipelineStageFlags.ColorAttachmentOutput | PipelineStageFlags.EarlyFragmentTests,
 						DstAccessMask = AccessFlags.ColorAttachmentWrite | AccessFlags.DepthStencilAttachmentWrite,
 					}
-				}
+				};
+			}
+
+			renderPass = device.CreateRenderPass(new RenderPassCreateInfo
+			{
+				Attachments = attachmentDescriptions.ToArray(),
+				Subpasses = new[]
+				{
+					new SubpassDescription
+					{
+						PipelineBindPoint = PipelineBindPoint.Graphics,
+						ColorAttachments = colorAttachments,
+						DepthStencilAttachment = depthStencilAttachment,
+					}
+				},
+				Dependencies = subpassDependencies,
 			});
 
 			_renderPassesToDelete.Add(renderPass);
@@ -4354,7 +4541,7 @@ namespace Microsoft.Xna.Framework.Graphics
 			var framebuffer = device.CreateFramebuffer(new FramebufferCreateInfo
 			{
 				RenderPass = renderPass, //todo: needs to be created per render pass?
-				Attachments = new []{currentAttachmentViews[0], depthImageView},
+				Attachments = attachments.ToArray(),
 				Width = currentAttachmentWidths[0],
 				Height = currentAttachmentHeights[0],
 				Layers = 1,
@@ -4400,8 +4587,8 @@ namespace Microsoft.Xna.Framework.Graphics
 			shouldClearStencil = false;
 
 			// Apply the dynamic state
-			/*
 			SetEncoderViewport();
+			/*
 			SetEncoderScissorRect();
 			SetEncoderBlendColor();
 			SetEncoderStencilReferenceValue();
